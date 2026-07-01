@@ -96,6 +96,35 @@ CREATE TABLE IF NOT EXISTS logs(
 )
 """)
 
+# ----------------------------------------------------------
+# 발 주  이 력
+# ----------------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS order_history(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    order_date TEXT NOT NULL,
+
+    ingredient TEXT NOT NULL,
+
+    current_stock REAL NOT NULL,
+
+    expected_usage REAL NOT NULL,
+
+    remaining_stock REAL NOT NULL,
+
+    safety_stock REAL NOT NULL,
+
+    recommended INTEGER NOT NULL,
+
+    ordered INTEGER DEFAULT 0,
+
+    received INTEGER DEFAULT 0,
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
 conn.commit()
 conn.close()
 

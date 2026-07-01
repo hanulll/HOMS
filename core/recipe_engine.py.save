@@ -1,0 +1,157 @@
+"""
+recipe_engine.py
+
+HOMS 통합 레시피 및 발주 계산 엔진
+- menu_rules.py: 메뉴별 원재료 소모 비율 매핑
+- ingredient_rules.py: 원재료 규격 및 발주 관리
+- recipe_rules.py: 상세 그램(g) 단위 레시피 및 kg 단위 변환
+
+이 모듈은 메뉴 판매량을 기준으로 실제 소모되는 원재료의 양을 집계하고,
+필요한 발주량을 계산하며, 가상의 재고를 관리하는 역할을 수행합니다.
+"""
+
+from collections import defaultdict
+
+import menu_rules
+import ingredient_rules
+import recipe_rules
+
+
+def calculate(sales_dict: dict) -> dict:
+    """
+    메뉴 판매수량을 기준으로 총 원재료 소모량을 계산합니다.
+    
+    우선순위:
+    1. menu_rules.py에 명시된 규칙 최우선 적용
+    2. 매핑되지 않은 메뉴는 recipe_rules.py의 상세 규칙 적용 (Fallback)
+    """
+    total_consumption = defaultdict(float)
+
+    for menu_name, quantity in sales_dict.items():
+        if quantity <= 0:
+            continue
+
+        # 1. menu_rules.py 규칙 적용
+        if menu_name in menu_rules.MENU_RULES:
+            rules = menu_rules.MENU_RULES[menu_name]
+            
+            for raw_ingredient, usage_ratio in rules.items():
+                if usage_ratio > 0:
+                    normalized_name = ingredient_rules.normalize_ingredient(raw_ingredient)
+                    total_consumption[normalized_name] += usage_ratio * quantity
+                    
+        # 2. recipe_rules.py 규칙 적용 (menu_rules에 없는 경우)
+        elif recipe_rules.has_recipe(menu_name):
+            recipe_usage = recipe_rules.calculate_total_recipe({menu_name: quantity})
+            
+            for raw_ingredient, usage_amount in recipe_usage.items():
+                if usage_amount > 0:
+                    normalized_name = ingredient_rules.normalize_ingredient(raw_ingredient)
+                    total_consumption[normalized_name] += usage_amount
+
+    return dict(total_consumption)
+
+
+def calculate_detailed_recipe(sales_dict: dict) -> dict:
+    """
+    그램(g) 단위까지 정밀하게 관리되는 recipe_rules.py를 기준으로
+    소모량을 계산하여 반환합니다.
+    """
+    return recipe_rules.calculate_total_recipe(sales_dict)
+
+
+def generate_order_sheet(sales_dict: dict) -> dict:
+    """
+    판매 내역(sales_dict)을 기반으로 원재료별 최종 소모량과
+    이를 보충하기 위해 필요한 발주 수량(Order Count) 및 발주 단위 정보를 생성합니다.
+    """
+    consumption = calculate(sales_dict)
+    order_sheet = {}
+
+    for ingredient, amount in consumption.items():
+        if not ingredient_rules.has_ingredient(ingredient):
+            continue
+            
+        order_qty = ingredient_rules.calculate_order_quantity(ingredient, amount)
+        order_count = ingredient_rules.calculate_order_count(ingredient, amount)
+        manage_unit = ingredient_rules.get_manage_unit(ingredient)
+        order_type = ingredient_rules.get_order_unit_type(ingredient)
+        minimum_order = ingredient_rules.get_minimum_order(ingredient)
+
+        order_sheet[ingredient] = {
+            "소모량": round(amount, 2),
+            "관리단위": manage_unit,
+            "발주수량(단위적용)": order_qty,
+            "발주박스(개수)": order_count,
+            "발주단위타입": order_type,
+            "최소발주단위": minimum_order
+        }
+
+    return order_sheet
+
+
+class HOMSEngine:
+    """
+    재고 관리 및 연속적인 판매/발주 처리를 위한 통합 엔진 클래스
+    """
+    def __init__(self):
+        self.inventory = ingredient_rules.create_inventory_dict()
+
+    def process_sales(self, sales_dict: dict) -> dict:
+        """
+        판매 데이터를 바탕으로 재고에서 원재료를 차감합니다.
+        """
+        consumption = calculate(sales_dict)
+        
+        for ingredient, amount in consumption.items():
+            if ingredient_rules.has_ingredient(ingredient):
+                ingredient_rules.subtract_inventory(self.inventory, ingredient, amount)
+                
+        return self.get_inventory()
+
+    def process_incoming_orders(self, orders_dict: dict) -> dict:
+        """
+        입고 데이터를 재고에 추가합니다.
+        (단, orders_dict의 수량은 발주 박스 개수가 아닌 실제 수량 단위(pack/kg) 기준)
+        """
+        for ingredient, amount in orders_dict.items():
+            if ingredient_rules.has_ingredient(ingredient):
+                ingredient_rules.add_inventory(self.inventory, ingredient, amount)
+                
+        return self.get_inventory()
+
+    def get_inventory(self) -> dict:
+        """
+        현재 재고 상태를 반환합니다.
+        """
+        return dict(self.inventory)
+
+    def reset(self):
+        """
+        재고를 초기화합니다.
+        """
+        self.inventory = ingredient_rules.reset_inventory()
+
+
+# ==========================================================
+# 테스트 및 직접 실행 시 동작 검증 로직
+# ==========================================================
+if __name__ == "__main__":
+    sample_sales = {
+        "허니콤보": 12,       # 허니콤보 12 pack
+        "레드윙": 5,          # 날개 5 단위 (1팩)
+        "점보윙박스": 2,      # 태국산윙봉 4 pack (2 * 2)
+        "교촌반마리": 3,      # 한마리 1.5 pack
+        "살살후라이드": 1,    # recipe_rules 폴백 테스트
+    }
+    
+    print("=== 소모량 계산 결과 ===")
+    consumption_result = calculate(sample_sales)
+    for k, v in consumption_result.items():
+        print(f" - {k}: {v}")
+
+    print("\n=== 발주서 산출 결과 ===")
+    order_result = generate_order_sheet(sample_sales)
+    for k, v in order_result.items():
+        print(f" - {k}: {v}")
+

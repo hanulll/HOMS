@@ -1,0 +1,175 @@
+"""
+==========================================================
+HOMS Order Engine
+==========================================================
+AI 발주 추천
+"""
+
+from __future__ import annotations
+
+from core.forecast_engine import ForecastEngine
+from core.inventory_engine import InventoryEngine
+from core.recipe_engine import RecipeEngine
+
+
+class OrderEngine:
+
+    def __init__(self):
+
+        self.forecast = ForecastEngine()
+        self.recipe = RecipeEngine()
+        self.inventory = InventoryEngine()
+    # ------------------------------------------------------
+    # 예상 원재료 사용량
+    # ------------------------------------------------------
+
+    def get_expected_usage(
+        self,
+        target_date,
+    ):
+
+        forecast = self.forecast.predict_all(
+            target_date,
+        )
+
+        sales = {}
+
+        for menu, data in forecast.items():
+
+            sales[menu] = data["prediction"]
+
+        return self.recipe.calculate_usage(
+            sales,
+        )
+
+    # ------------------------------------------------------
+    # 발주 추천
+    # ------------------------------------------------------
+
+    ORDER_UNITS = {
+        "북채": 7,
+        "날개": 10,
+        "허니콤보": 15,
+        "한마리": 15,
+        "허니순살": 5,
+        "정육순살": 5,
+        "태국산윙봉": 5,
+    }
+
+    SAFETY_STOCK = {
+        "북채": 3.0,
+        "날개": 3.0,
+        "허니콤보": 1.0,
+        "한마리": 1.0,
+        "허니순살": 1.0,
+        "정육순살": 1.0,
+        "태국산윙봉": 1.0,
+    }
+
+    def recommend_order(
+        self,
+        target_date,
+    ):
+
+        import math
+
+        usage = self.get_expected_usage(
+            target_date,
+        )
+
+        result = {}
+
+        current_stock = self.inventory.get_all_stock()
+        for ingredient, expected in usage.items():
+
+            stock = current_stock.get(
+                ingredient,
+                0,
+            )
+
+            safety = self.SAFETY_STOCK.get(
+                ingredient,
+                0,
+            )
+
+            remaining = round(
+            stock - expected,
+                1,
+            )
+            shortage = max(
+                0,
+                expected + safety - stock,
+            )
+
+            unit = self.ORDER_UNITS.get(
+                ingredient,
+                1,
+            )
+
+            recommend = (
+                math.ceil(
+                    shortage / unit
+                ) * unit
+            )
+
+            result[ingredient] = {
+               "current_stock": stock,
+               "expected_usage": round(
+                  expected,
+                  1,
+            ),
+               "remaining_stock": remaining,
+               "safety_stock": safety,
+               "shortage": round(
+                  shortage,
+                  1,
+            ),
+               "recommended": recommend,
+               "unit": unit,
+            }
+
+        return result
+
+    # ------------------------------------------------------
+    # 발주 이력 저장
+    # ------------------------------------------------------
+    def save_order_history(
+        self,
+        order_date: str,
+        orders: dict,
+    ):
+
+        from core.database_engine import DatabaseEngine
+
+        db = DatabaseEngine()
+
+        for ingredient, data in orders.items():
+
+            db.execute(
+                """
+                INSERT INTO order_history
+                (
+                    order_date,
+                    ingredient,
+                    current_stock,
+                    expected_usage,
+                    remaining_stock,
+                    safety_stock,
+                    recommended
+                )
+                VALUES
+                (
+                    ?, ?, ?, ?, ?, ?, ?
+                )
+                """,
+                (
+                    order_date,
+                    ingredient,
+                    data["current_stock"],
+                    data["expected_usage"],
+                    data["remaining_stock"],
+                    data["safety_stock"],
+                    data["recommended"],
+                ),
+            )
+
