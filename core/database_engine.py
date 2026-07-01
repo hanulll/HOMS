@@ -100,6 +100,16 @@ class DatabaseEngine:
         )
         """)
 
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS import_history
+        (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_name TEXT NOT NULL UNIQUE,
+            imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        self.conn.commit()
+
         self.conn.commit()
 
         self.cursor.execute("""

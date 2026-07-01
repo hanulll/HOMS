@@ -15,10 +15,6 @@ from core.recipe_engine import RecipeEngine
 
 from core.database_engine import DatabaseEngine
 
-from datetime import datetime
-
-from recipes.delivery_rules import get_delivery_date
-
 class OrderEngine:
 
     def __init__(self):
@@ -174,7 +170,8 @@ class OrderEngine:
                 "recommended": recommend,
                 "unit": unit,
             }
-        return result
+
+            return result
 
     # ------------------------------------------------------
     # 발주 이력 저장
@@ -184,51 +181,38 @@ class OrderEngine:
         order_date: str,
         orders: dict,
     ):
-        delivery = get_delivery_date(
-            datetime.strptime(
-                order_date,
-                "%Y-%m-%d",
-            )
-        )
 
-        delivery_date = (
-            delivery.strftime("%Y-%m-%d")
-            if delivery
-            else None
-        )
+        from core.database_engine import DatabaseEngine
+
+        db = DatabaseEngine()
 
         for ingredient, data in orders.items():
 
-            self.db.execute(
+            db.execute(
                 """
                 INSERT INTO order_history
                 (
                     order_date,
-                    delivery_date,
                     ingredient,
                     current_stock,
                     expected_usage,
                     remaining_stock,
                     safety_stock,
-                    recommended,
-                    ordered,
-                    received
+                    recommended
                 )
                 VALUES
                 (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
                 (
                     order_date,
-                    delivery_date,
                     ingredient,
                     data["current_stock"],
                     data["expected_usage"],
                     data["remaining_stock"],
                     data["safety_stock"],
                     data["recommended"],
-                    1,
-                    0,
                 ),
             )
+

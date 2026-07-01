@@ -88,14 +88,30 @@ class InventoryEngine:
 
             data = json.load(fp)
 
+        normalized = {}
+
+        for key, value in data.items():
+
+            nk = "".join(str(key).split())
+
+            for ingredient in INGREDIENTS:
+
+                if nk == "".join(ingredient.split()):
+
+                    normalized[ingredient] = float(value)
+
+                    break
+
         for ingredient in INGREDIENTS:
 
             self.inventory[ingredient] = float(
-                data.get(
+                normalized.get(
                     ingredient,
                     0,
                 )
             )
+
+
     # ------------------------------------------------------
     # 현재 재고 조회
     # ------------------------------------------------------

@@ -13,8 +13,27 @@ from core.report_engine import ReportEngine
 
 from core.telegram_sender import send_message
 
+from core.order_import_engine import OrderImportEngine
 
 def main():
+
+    importer = OrderImportEngine()
+
+    imported = importer.import_orders()
+
+    if imported:
+
+        print("=" * 40)
+        print("자동 입고")
+        print("=" * 40)
+
+        for ingredient, qty in imported.items():
+
+            print(
+                f"{ingredient} : +{qty}"
+            )
+
+        print()
 
     engine = ReportEngine()
 
@@ -24,9 +43,6 @@ def main():
         today,
     )
 
-    report = engine.generate_report(
-        today,
-    )
 
     # AI 예측 저장
     for prediction in report["forecast"].values():
