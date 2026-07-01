@@ -1,53 +1,97 @@
 from pathlib import Path
+from datetime import datetime
 import sqlite3
 
-# ===========================
-# 경로 설정
-# ===========================
+from openpyxl import load_workbook
 
 DB_PATH = Path.home() / "HOMS/database/HOMS.db"
 SALES_DIR = Path.home() / "koms_data/sales_2355"
 
-print("=" * 40)
-print(" HOMS 판매데이터 수집기 ")
-print("=" * 40)
+print("=" * 50)
+print("HOMS SALES IMPORT")
+print("=" * 50)
 
-print(f"DB : {DB_PATH}")
-print(f"매출폴더 : {SALES_DIR}")
-
-# DB 연결
-conn = sqlite3.connect(DB_PATH)
-cur = conn.cursor()
-
-# 최신 엑셀 찾기
 files = sorted(SALES_DIR.glob("*.xlsx"))
 
 if not files:
-    print("매출파일이 없습니다.")
-    exit()
+    print("판매파일이 없습니다.")
+    raise SystemExit
 
 latest = files[-1]
 
-print(f"\n최신파일 : {latest.name}")
+print(f"파일 : {latest.name}")
 
-conn.close()
-
-print("\n1단계 완료")
-
-from openpyxl import load_workbook
-
-print("\n엑셀 분석 시작...")
-
-wb = load_workbook(latest, data_only=True)
-
-print("\n시트 목록")
-
-for sheet in wb.sheetnames:
-    print("-", sheet)
+wb = load_workbook(
+    latest,
+    data_only=True,
+)
 
 ws = wb[wb.sheetnames[0]]
 
-print("\n첫 15행")
+sales_date = datetime.now().strftime("%Y-%m-%d")
+weekday = datetime.now().weekday()
 
-for row in ws.iter_rows(max_row=15, values_only=True):
-    print(row)
+conn = sqlite3.connect(DB_PATH)
+conn.row_factory = sqlite3.Row
+cur = conn.cursor()
+
+count = 0
+
+for row in ws.iter_rows(min_row=4, values_only=True):
+
+    if not row:
+        continue
+
+    menu = row[1]
+    qty = row[9]
+
+    if menu is None:
+        continue
+
+    menu = "".join(str(menu).split())
+
+    if not menu:
+        continue
+
+    if qty is None:
+        continue
+
+    try:
+        qty = float(qty)
+    except Exception:
+        continue
+
+    if qty <= 0:
+        continue
+
+    cur.execute(
+        """
+        INSERT INTO sales_history
+        (
+            sales_date,
+            weekday,
+            menu,
+            qty,
+            source
+        )
+        VALUES
+        (
+            ?, ?, ?, ?, ?
+        )
+        """,
+        (
+            sales_date,
+            weekday,
+            menu,
+            qty,
+            "2355",
+        ),
+    )
+
+    count += 1
+
+conn.commit()
+conn.close()
+
+print()
+print(f"{count}건 저장 완료")

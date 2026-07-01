@@ -23,7 +23,7 @@ DATABASE_DIR.mkdir(
     exist_ok=True,
 )
 
-DATABASE_FILE = DATABASE_DIR / "homs.db"
+DATABASE_FILE = DATABASE_DIR / "HOMS.db"
 
 
 class DatabaseEngine:

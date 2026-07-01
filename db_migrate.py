@@ -64,6 +64,58 @@ cur.execute(add_table_sql)
 print("[OK] receipt_history")
 
 conn.commit()
+
+# ----------------------------------------------------------
+# PREP INVENTORY
+# ----------------------------------------------------------
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS prep_inventory(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product TEXT UNIQUE,
+    quantity REAL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+# ----------------------------------------------------------
+# PREP HISTORY
+# ----------------------------------------------------------
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS prep_history(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    prep_date TEXT,
+    product TEXT,
+    remaining_before REAL,
+    target_sales REAL,
+    ai_adjustment REAL,
+    recommended REAL,
+    prepared REAL,
+    worker TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+# ----------------------------------------------------------
+# WEEKLY INVENTORY CHECK
+# ----------------------------------------------------------
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS weekly_inventory_check(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    check_date TEXT,
+    ingredient TEXT,
+    ai_quantity REAL,
+    actual_quantity REAL,
+    difference REAL,
+    accuracy REAL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+conn.commit()
+
 conn.close()
 
 print()
