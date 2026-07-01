@@ -11,90 +11,32 @@ from datetime import datetime
 
 from core.database_engine import DatabaseEngine
 
-from core.config import (
-    FORECAST_WEIGHTS,
-    DEFAULT_CONFIDENCE,
-)
+from core.ai_engine import AIEngine
 
 from core.history_engine import HistoryEngine
 
 class ForecastEngine:
 
-    def __init__(self):
-
+    def __init__(
+        self,
+    ):
         self.history = HistoryEngine()
         self.db = DatabaseEngine()
-    # ------------------------------------------------------
-    # 기본 예측 계산
-    # ------------------------------------------------------
+        self.ai = AIEngine()
 
+    # ------------------------------------------------------
+    # AI 예측
+    # ------------------------------------------------------
     def get_prediction(
         self,
         menu: str,
         target_date: datetime,
     ) -> dict:
 
-        weekday = target_date.weekday()
-
-        weekday_avg = self.history.get_same_weekday_average(
+        return self.ai.predict(
             menu,
-            weekday,
+            target_date,
         )
-
-        avg30 = self.history.get_average(
-            menu,
-            30,
-        )
-
-        avg90 = self.history.get_average(
-            menu,
-            90,
-        )
-
-        prediction = (
-            weekday_avg * FORECAST_WEIGHTS["weekday"]
-            + avg30 * FORECAST_WEIGHTS["avg30"]
-            + avg90 * FORECAST_WEIGHTS["avg90"]
-        )
-
-        reasons = self.get_reasons(
-            weekday_avg,
-            avg30,
-            avg90,
-        )
-
-        opinion = self.get_opinion(
-            prediction,
-            avg30,
-        )
-
-        return {
-            "menu": menu,
-            "prediction": round(prediction, 1),
-
-            "weekday_average": round(
-                weekday_avg,
-                1,
-            ),
-
-            "average30": round(
-                avg30,
-                1,
-            ),
-
-            "average90": round(
-                avg90,
-                1,
-            ),
-
-            "confidence": DEFAULT_CONFIDENCE,
-
-            "reasons": reasons,
-
-            "opinion": opinion,
-
-            "version": "HOMS AI 1.0",
-        }
 
     # ------------------------------------------------------
     # AI 판단 근거

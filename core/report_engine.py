@@ -69,7 +69,6 @@ class ReportEngine:
     # ------------------------------------------------------
     # AI 리포트 문자열 생성
     # ------------------------------------------------------
-
     def format_report(
         self,
         report: dict,
@@ -79,18 +78,27 @@ class ReportEngine:
 
         lines.append("🤖 HOMS AI REPORT")
         lines.append("=" * 35)
-        lines.append(f"날짜 : {report['date']}")
-        lines.append(f"AI 정확도 : {report['accuracy']:.2f}%")
+
+        lines.append(
+            f"날짜 : {report['date']}"
+        )
+
+        lines.append(
+            f"AI 정확도 : {report['accuracy']:.2f}%"
+        )
+
         lines.append("")
 
         lines.append("[예상 원재료 사용량]")
 
         for ingredient, qty in report["usage"].items():
+
             lines.append(
                 f"- {ingredient} : {qty:.1f}"
             )
 
         lines.append("")
+
         lines.append("[추천 발주]")
 
         for ingredient, data in report["orders"].items():
@@ -119,35 +127,57 @@ class ReportEngine:
                 f"  추천발주 : {data['recommended']}"
             )
 
-
         lines.append("")
+
         lines.append("[AI 분석]")
 
         for menu, data in report["forecast"].items():
 
-            lines.append(
-                f"{menu}"
-            )
+            lines.append(menu)
 
             lines.append(
                 f"  예측 : {data['prediction']:.1f}"
             )
 
             lines.append(
-                f"  같 은 요 일 평 균 : {data['weekday_average']:.1f}"
+                f"  같은요일평균 : {data['weekday_average']:.1f}"
+            )
+
+            if "average7" in data:
+
+                lines.append(
+                    f"  최근7일평균 : {data['average7']:.1f}"
+                )
+
+            if "average14" in data:
+
+                lines.append(
+                    f"  최근14일평균 : {data['average14']:.1f}"
+                )
+
+            lines.append(
+                f"  최근30일평균 : {data['average30']:.1f}"
             )
 
             lines.append(
-                f"  최 근 30일 평 균 : {data['average30']:.1f}"
+                f"  최근90일평균 : {data['average90']:.1f}"
             )
 
-            lines.append(
-                f"  최 근 90일 평 균 : {data['average90']:.1f}"
-            )
+            if "trend" in data:
+
+                lines.append(
+                    f"  최근추세 : {data['trend']:+.1f}%"
+                )
 
             lines.append(
-                f"  AI 신 뢰 도 : {data['confidence']:.1f}%"
+                f"  AI신뢰도 : {data['confidence']:.1f}%"
             )
+
+            if "version" in data:
+
+                lines.append(
+                    f"  AI버전 : {data['version']}"
+                )
 
             lines.append(
                 f"  의견 : {data['opinion']}"
