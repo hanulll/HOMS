@@ -2,233 +2,435 @@
 ==========================================================
 HOMS Order Engine
 ==========================================================
-AI 발주 추천
+자동 발주 계산
 """
 
 from __future__ import annotations
 
-from core.forecast_engine import ForecastEngine
+import math
 
-from core.inventory_engine import InventoryEngine
+from core.config import (
+    ORDER_UNIT,
+    SAFETY_STOCK,
+)
 
-from core.recipe_engine import RecipeEngine
+from collections import defaultdict
 
 from core.database_engine import DatabaseEngine
+from core.inventory_engine import InventoryEngine
+from core.recipe_engine import RecipeEngine
 
-from datetime import datetime
-
-from recipes.delivery_rules import get_delivery_date
+from datetime import datetime, timedelta
 
 class OrderEngine:
 
     def __init__(self):
 
-        self.forecast = ForecastEngine()
-        self.recipe = RecipeEngine()
-        self.inventory = InventoryEngine()
         self.db = DatabaseEngine()
 
+        self.inventory = InventoryEngine()
+
+        self.recipe = RecipeEngine()
+
     # ------------------------------------------------------
-    # 예상 원재료 사용량
+    # Key Normalize
     # ------------------------------------------------------
 
-    def get_expected_usage(
-        self,
-        target_date,
-    ):
+    @staticmethod
+    def normalize_key(value):
 
-        forecast = self.forecast.predict_all(
-            target_date,
+        return "".join(
+            str(value).split()
         )
 
-        sales = {}
+    # ------------------------------------------------------
+    # 배송일 계산
+    # ------------------------------------------------------
 
-        for menu, data in forecast.items():
+    def get_delivery_date(
+        self,
+        order_date=None,
+    ):
 
-            sales[menu] = data["prediction"]
+        if order_date is None:
+            order_date = datetime.now()
+
+        weekday = order_date.weekday()
+
+        # 월~목, 일 : +2일
+        if weekday in (0, 1, 2, 3, 6):
+            return order_date + timedelta(days=2)
+
+        # 금 : +3일
+        if weekday == 4:
+            return order_date + timedelta(days=3)
+
+        # 토 : 발주 없음 → 일요일 발주
+        return None
+
+    # ------------------------------------------------------
+    # 발주기간 일수
+    # ------------------------------------------------------
+
+    def get_order_days(
+        self,
+        order_date=None,
+    ):
+
+        delivery = self.get_delivery_date(
+            order_date,
+        )
+
+        if delivery is None:
+            return 0
+
+        return (
+            delivery.date()
+            - (order_date or datetime.now()).date()
+        ).days
+
+    # ------------------------------------------------------
+    # 발주 대상 판매량
+    # ------------------------------------------------------
+
+    def get_target_sales(
+        self,
+        sales_today,
+        forecast,
+        order_date=None,
+    ):
+
+        days = self.get_order_days(
+            order_date,
+        )
+
+        target = {}
+
+        for menu, qty in forecast.items():
+
+            today = sales_today.get(
+                menu,
+                0.0,
+            )
+
+            target[menu] = today + (qty * days)
+
+        return target
+
+    # ------------------------------------------------------
+    # 판매 → 원재료 사용량
+    # ------------------------------------------------------
+
+    def calculate_usage(
+        self,
+        sales,
+    ):
 
         return self.recipe.calculate_usage(
             sales,
+        )
+
+
+    # ------------------------------------------------------
+    # 현재 재고 조회
+    # ------------------------------------------------------
+
+    def get_current_stock(
+        self,
+    ):
+
+
+        stock = self.inventory.get_all_stock()
+
+        result = {}
+
+        for ingredient, qty in stock.items():
+
+            result[
+                self.normalize_key(
+                    ingredient
+                )
+            ] = qty
+
+        return result
+
+    # ------------------------------------------------------
+    # 오늘 입고
+    # ------------------------------------------------------
+
+    def get_receiving_stock(
+        self,
+    ):
+
+        row = self.db.fetchone(
+            """
+            SELECT
+                MAX(receipt_date) AS receipt_date
+            FROM receipt_history
+            """
+        )
+
+        if not row or not row["receipt_date"]:
+
+            return {}
+
+        receipt_date = row["receipt_date"]
+
+        rows = self.db.fetchall(
+            """
+            SELECT
+                ingredient,
+                quantity
+            FROM receipt_history
+            WHERE receipt_date = ?
+            """,
+            (
+                receipt_date,
+            ),
+        )
+
+        result = defaultdict(
+            float,
+        )
+
+        for row in rows:
+
+            key = self.normalize_key(
+                row["ingredient"]
+            )
+
+            result[key] += float(
+                row["quantity"]
+            )
+
+        return dict(
+            result
+        )
+
+    # ------------------------------------------------------
+    # 부족 재고 계산
+    # ------------------------------------------------------
+
+    def calculate_shortage(
+        self,
+        sales,
+    ):
+
+        usage = self.calculate_usage(
+            sales,
+        )
+
+        stock = self.get_current_stock()
+
+        incoming = self.get_receiving_stock()
+
+        shortage = defaultdict(
+            float,
+        )
+
+        for ingredient, amount in usage.items():
+
+            key = "".join(
+                str(ingredient).split()
+            )
+
+            current = (
+
+                stock.get(
+                   key,
+                    0.0,
+                )
+
+                +
+
+                incoming.get(
+                    key,
+                    0.0,
+                )
+
+            )
+
+            if key == "태국산윙봉":
+
+                current *= 20
+
+            safety = SAFETY_STOCK.get(
+                ingredient,
+                SAFETY_STOCK.get(
+                    key,
+                    0,
+                ),
+            )
+
+            remain = (
+                current
+                - amount
+                - safety
+            )
+
+            if remain < 0:
+
+                shortage[
+                    ingredient
+                ] = abs(
+                    remain
+                )
+
+        return dict(
+            shortage
         )
 
     # ------------------------------------------------------
     # 발주 추천
     # ------------------------------------------------------
 
-    ORDER_UNITS = {
-        "북채": 7,
-        "날개": 10,
-        "허니콤보": 15,
-        "한마리": 15,
-        "허니순살": 5,
-        "정육순살": 5,
-        "태국산윙봉": 5,
-    }
-
-    SAFETY_STOCK = {
-        "북채": 3.0,
-        "날개": 3.0,
-        "허니콤보": 1.0,
-        "한마리": 1.0,
-        "허니순살": 1.0,
-        "정육순살": 1.0,
-        "태국산윙봉": 1.0,
-    }
-
-    def get_incoming_stock(
-        self,
-    ):
-
-        rows = self.db.fetchall(
-            """
-            SELECT
-                ingredient,
-                SUM(recommended) qty
-            FROM order_history
-            WHERE
-                ordered=1
-            AND
-                received=0
-            GROUP BY ingredient
-            """
-        )
-
-        incoming = {}
-
-        for row in rows:
-
-            incoming[row["ingredient"]] = float(
-                row["qty"]
-            )
-
-        return incoming
-
     def recommend_order(
         self,
-        target_date,
+        sales,
     ):
-        import math
 
-        usage = self.get_expected_usage(
-            target_date,
+        shortage = self.calculate_shortage(
+            sales,
         )
 
         result = {}
 
-        current_stock = self.inventory.get_all_stock()
+        order_unit = {
 
-        incoming_stock = self.get_incoming_stock()
+            self.normalize_key(k): v
 
-        for ingredient, expected in usage.items():
+            for k, v in ORDER_UNIT.items()
 
-            stock = (
-                current_stock.get(
-                    ingredient,
-                    0,
-                )
-                +
-                incoming_stock.get(
-                    ingredient,
-                    0,
-                )
+        }
+
+        for ingredient, amount in shortage.items():
+
+            key = self.normalize_key(
+               ingredient
             )
-
-            safety = self.SAFETY_STOCK.get(
-                ingredient,
-                0,
-            )
-
-            remaining = round(
-                stock - expected,
+            unit = order_unit.get(
+                key,
                 1,
             )
 
-            shortage = max(
-                0,
-                expected + safety - stock,
-            )
 
-            unit = self.ORDER_UNITS.get(
-                ingredient,
-                1,
-            )
+            # ---------------------------------
+            # 태국산 윙봉
+            # 20P = 1팩
+            # 발주는 5팩 단위
+            # ---------------------------------
 
-            recommend = (
-                math.ceil(
-                    shortage / unit
-                ) * unit
+            if key == "태국산윙봉":
+
+                required_pieces = amount
+
+                print(
+                    f"DEBUG THAI : amount={amount}"
+                )
+
+                required_pieces = amount
+
+                required_packs = math.ceil(
+                    required_pieces / 20
+                )
+
+                order_packs = (
+                    math.ceil(
+                        required_packs / 5
+                    ) * 5
+                )
+
+                result[ingredient] = {
+
+                    "required_pieces": int(
+                        required_pieces
+                    ),
+
+                    "required_packs": required_packs,
+
+                    "unit": "20P/Pack",
+
+                    "order_packs": order_packs,
+
+                    "order_pieces": order_packs * 20,
+
+                }
+
+                continue
+
+            # -------------------------------
+            # 발주 수량(올림)
+            # -------------------------------
+
+            packs = math.ceil(
+                amount / unit
             )
 
             result[ingredient] = {
-                "current_stock": stock,
-                "expected_usage": round(
-                    expected,
-                    1,
+
+                "required": round(
+                    amount,
+                    2,
                 ),
-                "remaining_stock": remaining,
-                "safety_stock": safety,
-                "shortage": round(
-                    shortage,
-                    1,
-                ),
-                "recommended": recommend,
+
                 "unit": unit,
+
+                "packs": packs,
+
+                "order": round(
+                    packs * unit,
+                    2,
+                ),
             }
-        return result
 
-    # ------------------------------------------------------
-    # 발주 이력 저장
-    # ------------------------------------------------------
-    def save_order_history(
-        self,
-        order_date: str,
-        orders: dict,
-    ):
-        delivery = get_delivery_date(
-            datetime.strptime(
-                order_date,
-                "%Y-%m-%d",
-            )
+        today = datetime.now().strftime(
+            "%Y-%m-%d"
         )
 
-        delivery_date = (
-            delivery.strftime("%Y-%m-%d")
-            if delivery
-            else None
-        )
+        for ingredient, data in result.items():
 
-        for ingredient, data in orders.items():
+            if "order_packs" in data:
+                quantity = data["order_packs"]
+                unit = "PACK"
+            else:
+                quantity = data["order"]
+                unit = "UNIT"
 
             self.db.execute(
                 """
-                INSERT INTO order_history
+                INSERT INTO order_recommend_history
                 (
                     order_date,
-                    delivery_date,
                     ingredient,
-                    current_stock,
-                    expected_usage,
-                    remaining_stock,
-                    safety_stock,
-                    recommended,
-                    ordered,
-                    received
+                    quantity,
+                    unit
                 )
                 VALUES
                 (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?
                 )
                 """,
                 (
-                    order_date,
-                    delivery_date,
+                    today,
                     ingredient,
-                    data["current_stock"],
-                    data["expected_usage"],
-                    data["remaining_stock"],
-                    data["safety_stock"],
-                    data["recommended"],
-                    1,
-                    0,
+                    quantity,
+                    unit,
                 ),
             )
+
+        return result
+
+
+# ==========================================================
+# Global Engine
+# ==========================================================
+
+ENGINE = OrderEngine()
+
+
+
+
+# ==========================================================
+# END OF FILE
+# ==========================================================
+

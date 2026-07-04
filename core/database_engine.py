@@ -38,7 +38,21 @@ class DatabaseEngine:
 
         self.cursor = self.conn.cursor()
         self.create_tables()
-    # ------------------------------------------------------
+
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS order_recommend_history
+        (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_date TEXT NOT NULL,
+            ingredient TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        self.conn.commit()
+
+ # ------------------------------------------------------
     # 테이블 생성
     # ------------------------------------------------------
 
@@ -63,6 +77,19 @@ class DatabaseEngine:
 
         )
         """)
+
+        self.conn.commit()
+
+        self.cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_forecast_unique
+        ON forecast_history
+        (
+            sales_date,
+            menu
+        )
+        """)
+
+        self.conn.commit()
 
         self.conn.commit()
         self.cursor.execute("""
@@ -139,6 +166,32 @@ class DatabaseEngine:
         )
         """)
 
+
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS forecast_learning
+            (
+                menu TEXT PRIMARY KEY,
+
+                average_error REAL DEFAULT 0,
+
+                sample_count INTEGER DEFAULT 0,
+
+                updated_at TIMESTAMP
+                    DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS inventory_sync_history
+        (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sales_date TEXT NOT NULL UNIQUE,
+            synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
         self.conn.commit()
 
     # ------------------------------------------------------

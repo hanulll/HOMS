@@ -7,7 +7,7 @@ HOMS Database Migration
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "database" / "homs.db"
+DB_PATH = Path(__file__).parent / "database" / "HOMS.db"
 
 conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
@@ -113,6 +113,52 @@ CREATE TABLE IF NOT EXISTS weekly_inventory_check(
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 )
 """)
+
+
+# ----------------------------------------------------------
+# INVENTORY CURRENT
+# ----------------------------------------------------------
+
+cur.execute("""
+CREATE TABLE IF NOT EXISTS inventory_current(
+    ingredient TEXT PRIMARY KEY,
+    stock REAL DEFAULT 0,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+ingredients = [
+    "북채",
+    "날개",
+    "한마리",
+    "허니콤보",
+    "허니순살",
+    "정육순살",
+    "태국산윙봉",
+    "소이가슴",
+    "소이정육",
+]
+
+for ingredient in ingredients:
+
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO inventory_current
+        (
+            ingredient,
+            stock
+        )
+        VALUES
+        (
+            ?, 0
+        )
+        """,
+        (
+            ingredient,
+        ),
+    )
+
+print("[OK] inventory_current")
 
 conn.commit()
 

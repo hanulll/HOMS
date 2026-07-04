@@ -20,11 +20,32 @@ def send_message(
         print("Telegram 설정이 없습니다.")
         return
 
-    requests.post(
-        f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-        data={
-            "chat_id": CHAT_ID,
-            "text": text,
-        },
-        timeout=10,
-    )
+    try:
+
+        response = requests.post(
+
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+
+            data={
+
+                "chat_id": CHAT_ID,
+
+                "text": text,
+
+                "disable_notification": False,
+
+            },
+
+            timeout=10,
+
+        )
+
+        response.raise_for_status()
+
+    except Exception as e:
+
+        print(
+
+            f"Telegram Error : {e}"
+
+        )

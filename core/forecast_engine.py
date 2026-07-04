@@ -1,160 +1,476 @@
 """
-==========================================================
-HOMS Forecast Engine V2
-==========================================================
-판매 예측 AI
+HOMS Forecast Engine
+
+판매 예측 엔진
+
+기능
+- 발주 대상 날짜 계산
+- 동일 요일 판매 분석
+- 예상 판매량 계산
+- 원재료 예상 사용량 계산
+- 부족 재고 계산
 """
 
 from __future__ import annotations
 
-from datetime import datetime
+import statistics
+from copy import deepcopy
+from datetime import date
+from pathlib import Path
+from typing import Dict
+import pandas as pd
 
-from core.database_engine import DatabaseEngine
+from core.recipe_engine import RecipeEngine
+from core.inventory_engine import InventoryEngine
 
-from core.ai_engine import AIEngine
+from core.database_engine import (
+    DatabaseEngine,
+)
 
-from core.history_engine import HistoryEngine
+# ==========================================================
+# Path
+# ==========================================================
+
+ROOT_DIR = Path(__file__).resolve().parent.parent
+
+HISTORY_DIR = ROOT_DIR / "history"
+
+
+# ==========================================================
+# Forecast Engine
+# ==========================================================
 
 class ForecastEngine:
 
-    def __init__(
-        self,
-    ):
-        self.history = HistoryEngine()
+    def __init__(self):
+
         self.db = DatabaseEngine()
-        self.ai = AIEngine()
+
+        self.recipe_engine = RecipeEngine()
+
+        self.inventory_engine = InventoryEngine()
 
     # ------------------------------------------------------
-    # AI 예측
+    # 오늘
     # ------------------------------------------------------
-    def get_prediction(
-        self,
-        menu: str,
-        target_date: datetime,
-    ) -> dict:
 
-        return self.ai.predict(
-            menu,
-            target_date,
+    @staticmethod
+    def today():
+
+        return date.today()
+
+
+    # ------------------------------------------------------
+    # 오늘 요일
+    # ------------------------------------------------------
+
+    @staticmethod
+    def weekday():
+
+        return date.today().weekday()
+    # ------------------------------------------------------
+    # 발주 리드타임
+    # 월~목,일 : +2일
+    # 금요일 : +3일
+    # ------------------------------------------------------
+
+    @staticmethod
+    def lead_days(today=None):
+
+        if today is None:
+
+            today = date.today()
+
+        weekday = today.weekday()
+
+        # 토요일 발주 없음
+        if weekday == 5:
+
+            return None
+
+        # 금요일 → 월요일 배송
+        if weekday == 4:
+
+            return 3
+
+        # 월~목, 일
+        return 2
+
+    # ------------------------------------------------------
+    # 발주 대상 날짜
+    # ------------------------------------------------------
+
+    @staticmethod
+    def target_date(today=None):
+
+        from datetime import timedelta
+
+        if today is None:
+
+            today = date.today()
+
+        lead = ForecastEngine.lead_days(
+            today
+        )
+
+        if lead is None:
+
+            return None
+
+        return today + timedelta(
+            days=lead
         )
 
     # ------------------------------------------------------
-    # AI 판단 근거
+    # 대상 요일
     # ------------------------------------------------------
 
-    def get_reasons(
-        self,
-        weekday_avg: float,
-        avg30: float,
-        avg90: float,
-    ) -> list[str]:
+    @staticmethod
+    def target_weekday(today=None):
 
-        reasons = []
-
-        if weekday_avg >= avg30:
-            reasons.append(
-                "최근 같은 요일 평균이 최근 30일 평균보다 높습니다."
-            )
-
-        if avg30 >= avg90:
-            reasons.append(
-                "최근 30일 판매가 장기 평균보다 높습니다."
-            )
-
-        if not reasons:
-            reasons.append(
-                "최근 판매 패턴이 안정적으로 유지되고 있습니다."
-            )
-
-        return reasons
-
-
-    # ------------------------------------------------------
-    # AI 의견
-    # ------------------------------------------------------
-
-    def get_opinion(
-        self,
-        prediction: float,
-        avg30: float,
-    ) -> str:
-
-        if prediction > avg30 * 1.10:
-            return (
-                "평소보다 판매 증가가 예상됩니다. "
-                "재고를 조금 더 확보하는 것을 권장합니다."
-            )
-
-        if prediction < avg30 * 0.90:
-            return (
-                "최근 판매가 감소하는 추세입니다. "
-                "과발주에 주의하세요."
-            )
-
-        return (
-            "평균적인 판매가 예상됩니다."
+        target = ForecastEngine.target_date(
+            today
         )
 
+        if target is None:
+
+            return None
+
+        return target.weekday()
+
+
     # ------------------------------------------------------
-    # 전체 메뉴 예측
+    # 동일 요일 판매 조회(DB)
     # ------------------------------------------------------
 
-    def predict_all(
+    def weekday_history(
         self,
-        target_date: datetime,
-    ) -> dict:
+        target_weekday: int,
+    ):
 
-        results = {}
+        rows = self.db.fetchall(
 
-        rows = self.history.db.fetchall(
             """
-            SELECT DISTINCT menu
+            SELECT
+                menu,
+                qty
             FROM sales_history
-            ORDER BY menu
-            """
+            WHERE weekday = ?
+            """,
+
+            (
+                target_weekday,
+            ),
+
         )
+
+        return rows
+
+    # ------------------------------------------------------
+    # 메뉴별 평균 판매(DB)
+    # ------------------------------------------------------
+
+    def average_sales(
+
+        self,
+
+        target_weekday: int,
+
+    ):
+
+        rows = self.weekday_history(
+            target_weekday,
+        )
+
+        result = {}
+
+        counter = {}
 
         for row in rows:
 
             menu = row["menu"]
 
-            results[menu] = self.get_prediction(
-                menu,
-                target_date,
+            qty = float(
+                row["qty"]
             )
 
-        return results
+            result.setdefault(
+                menu,
+                0.0,
+            )
+
+            counter.setdefault(
+                menu,
+                0,
+            )
+
+            result[menu] += qty
+
+            counter[menu] += 1
+
+        for menu in result:
+
+            result[menu] /= counter[
+                menu
+            ]
+
+        return result
 
     # ------------------------------------------------------
-    # 예측 저장
+    # 오늘 21:30 판매(DB)
     # ------------------------------------------------------
 
-    def save_prediction(
+    def get_today_sales(
         self,
-        sales_date: str,
-        prediction: dict,
     ):
 
-        self.db.execute(
-            """
-            INSERT INTO forecast_history
-            (
-                sales_date,
-                menu,
-                prediction,
-                confidence,
-                version
-            )
-            VALUES
-            (
-                ?, ?, ?, ?, ?
-            )
-            """,
-            (
-                sales_date,
-                prediction["menu"],
-                prediction["prediction"],
-                prediction["confidence"],
-                prediction["version"],
-            ),
+        today = date.today().strftime(
+            "%Y-%m-%d"
         )
+
+        rows = self.db.fetchall(
+
+            """
+            SELECT
+                menu,
+                qty
+            FROM sales_history
+            WHERE sales_date = ?
+              AND source = '2130'
+            """,
+
+            (
+                today,
+            ),
+
+        )
+
+
+        result = {}
+
+        for row in rows:
+
+            result[
+                row["menu"]
+            ] = float(
+                row["qty"]
+            )
+
+        return result
+
+
+    # ------------------------------------------------------
+    # 오늘 21:30 판매량 반영
+    # ------------------------------------------------------
+
+    def merge_today_sales(
+        self,
+        average_sales: Dict[str, float],
+        today_sales: Dict[str, float],
+    ) -> Dict[str, float]:
+
+        forecast = deepcopy(
+            average_sales
+        )
+
+        for menu, qty in today_sales.items():
+
+            average = float(
+
+                forecast.get(
+                    menu,
+                    0,
+                )
+
+            )
+
+            today_qty = float(
+                qty
+            )
+
+            forecast[menu] = max(
+
+                average,
+
+                today_qty,
+
+            )
+
+        return forecast
+
+
+    # ------------------------------------------------------
+    # 예상 판매량 계산
+    # ------------------------------------------------------
+
+    def forecast_sales(
+        self,
+    ) -> Dict[str, float]:
+
+        target = self.target_weekday()
+
+
+        average = self.average_sales(
+            target,
+        )
+
+
+        today = self.get_today_sales()
+
+
+        merged = self.merge_today_sales(
+            average,
+            today,
+        )
+
+
+        return merged
+
+    # ------------------------------------------------------
+    # 예상 원재료 사용량
+    # ------------------------------------------------------
+
+    def forecast_usage(
+        self,
+    ):
+
+        sales = self.forecast_sales()
+
+        return self.recipe_engine.calculate_usage(
+            sales
+        )
+
+    # ------------------------------------------------------
+    # 예상 재고
+    # ------------------------------------------------------
+
+    def forecast_inventory(
+        self,
+    ):
+
+        usage = self.forecast_usage()
+
+        return self.inventory_engine.forecast_inventory(
+            usage
+        )
+
+    # ------------------------------------------------------
+    # 부족 재고 계산
+    # ------------------------------------------------------
+
+
+    def forecast_shortage(
+        self,
+    ):
+
+        usage = self.forecast_usage()
+
+        return self.inventory_engine.get_shortage(
+            usage
+        )
+
+
+    # ------------------------------------------------------
+    # 발주 대상 조회
+    # ------------------------------------------------------
+
+    def order_candidates(
+        self,
+    ):
+
+        shortage = self.forecast_shortage()
+
+        result = {}
+
+        for ingredient, amount in shortage.items():
+
+            if amount > 0:
+
+                result[ingredient] = amount
+
+        return result
+
+
+    # ------------------------------------------------------
+    # 예측 결과
+    # ------------------------------------------------------
+
+    def forecast_result(
+        self,
+    ):
+
+        sales = self.forecast_sales()
+
+        usage = self.forecast_usage()
+
+        remain = self.forecast_inventory()
+
+        shortage = self.forecast_shortage()
+
+        return {
+            "sales": sales,
+            "usage": usage,
+            "inventory": remain,
+            "shortage": shortage,
+        }
+# ==========================================================
+# Singleton
+# ==========================================================
+
+ENGINE = ForecastEngine()
+
+
+# ==========================================================
+# Helper Functions
+# ==========================================================
+
+
+def forecast_usage(today_sales):
+
+    return ENGINE.forecast_usage(
+        today_sales
+    )
+
+
+def forecast_inventory(today_sales):
+
+    return ENGINE.forecast_inventory(
+        today_sales
+    )
+
+
+def forecast_shortage():
+
+    return ENGINE.forecast_shortage()
+
+
+def forecast_result():
+
+    return ENGINE.forecast_result()
+
+
+# ==========================================================
+# Test
+# ==========================================================
+
+if __name__ == "__main__":
+
+    print("=" * 60)
+
+    print("HOMS Forecast Engine")
+
+    print("=" * 60)
+
+    result = ENGINE.forecast_result()
+
+    print("\n예 상  판 매")
+
+    for menu, qty in result["sales"].items():
+
+        print(f"{menu:<20} {qty}")
+
+
+# ==========================================================
+# END OF FILE
+# ==========================================================
+

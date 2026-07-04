@@ -17,12 +17,16 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Dict
 
+from core.database_engine import DatabaseEngine
 from recipes.ingredient_rules import (
     INGREDIENTS,
     create_inventory_dict,
 )
-
 from core.recipe_engine import RecipeEngine
+
+import json
+from pathlib import Path
+import os
 
 
 # ==========================================================
@@ -41,76 +45,117 @@ INVENTORY_FILE = DATA_DIR / "inventory.json"
 
 class InventoryEngine:
 
-    def __init__(self):
-
-        self.recipe_engine = RecipeEngine()
+    def __init__(
+        self,
+    ):
 
         self.inventory = create_inventory_dict()
 
+        self.db = DatabaseEngine()
+
+        self.data_dir = Path(
+            "data"
+        )
+
+        self.data_dir.mkdir(
+            exist_ok=True,
+        )
+
+        self.inventory_file = (
+            self.data_dir
+            / "inventory.json"
+        )
+
         self.load_inventory()
 
+    # ------------------------------------------------------
+    # 재고 차감
+    # ------------------------------------------------------
+    def consume_stock(
+        self,
+        usage: dict,
+    ):
+        for ingredient, amount in usage.items():
+
+            self.db.execute(
+                """
+                UPDATE inventory_current
+                SET
+                    stock = stock - ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE ingredient = ?
+                """,
+                (
+                    amount,
+                    ingredient,
+                ),
+            )
+
+            self.db.execute(
+                """
+                INSERT INTO prep_history
+                (
+                    ingredient,
+                    quantity,
+                    memo
+                )
+                VALUES
+                (
+                    ?, ?, ?
+                )
+                """,
+                (
+                    ingredient,
+                    -amount,
+                    "2355 AUTO CONSUME",
+                ),
+            )
 
     # ------------------------------------------------------
     # 저장
     # ------------------------------------------------------
-
     def save_inventory(self):
 
-        with open(
-            INVENTORY_FILE,
-            "w",
-            encoding="utf-8",
-        ) as fp:
+        for ingredient, stock in self.inventory.items():
 
-            json.dump(
-                self.inventory,
-                fp,
-                ensure_ascii=False,
-                indent=4,
+            self.db.execute(
+                """
+                UPDATE inventory_current
+                SET
+                    stock = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE ingredient = ?
+                """,
+                (
+                    float(stock),
+                    ingredient,
+                ),
             )
-
 
     # ------------------------------------------------------
     # 불러오기
     # ------------------------------------------------------
-
     def load_inventory(self):
 
-        if not INVENTORY_FILE.exists():
-            self.save_inventory()
-            return
-
-        with open(
-            INVENTORY_FILE,
-            "r",
-            encoding="utf-8",
-        ) as fp:
-
-            data = json.load(fp)
-
-        normalized = {}
-
-        for key, value in data.items():
-
-            nk = "".join(str(key).split())
-
-            for ingredient in INGREDIENTS:
-
-                if nk == "".join(ingredient.split()):
-
-                    normalized[ingredient] = float(value)
-
-                    break
+        rows = self.db.fetchall(
+            """
+            SELECT ingredient, stock
+            FROM inventory_current
+            """
+        )
 
         for ingredient in INGREDIENTS:
+            self.inventory[ingredient] = 0.0
 
-            self.inventory[ingredient] = float(
-                normalized.get(
-                    ingredient,
-                    0,
+        for row in rows:
+
+            ingredient = row["ingredient"]
+
+            if ingredient in self.inventory:
+
+                self.inventory[ingredient] = float(
+                    row["stock"]
                 )
-            )
-
 
     # ------------------------------------------------------
     # 현재 재고 조회
@@ -264,15 +309,11 @@ class InventoryEngine:
 
     def forecast_inventory(
         self,
-        sales: Dict[str, float],
+        usage: Dict[str, float],
     ) -> Dict[str, float]:
 
         remain = deepcopy(
             self.inventory
-        )
-
-        usage = self.recipe_engine.calculate_usage(
-            sales
         )
 
         for ingredient, amount in usage.items():
@@ -286,6 +327,7 @@ class InventoryEngine:
                 remain[ingredient] = 0
 
         return remain
+
     # ------------------------------------------------------
     # 부족 재고 조회
     # ------------------------------------------------------

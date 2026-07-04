@@ -2,8 +2,6 @@
 ==========================================================
 HOMS Report Engine
 ==========================================================
-
-AI Report Generator
 """
 
 from __future__ import annotations
@@ -11,20 +9,34 @@ from __future__ import annotations
 from datetime import datetime
 
 from core.forecast_engine import ForecastEngine
-from core.order_engine import OrderEngine
 from core.history_engine import HistoryEngine
+from core.order_engine import OrderEngine
 
+from core.learning_engine import (
+    LearningEngine,
+)
+
+
+# ==========================================================
+# Report Engine
+# ==========================================================
 
 class ReportEngine:
 
-    def __init__(self):
+    def __init__(
+        self,
+    ):
 
         self.forecast = ForecastEngine()
-        self.order = OrderEngine()
+
         self.history = HistoryEngine()
 
+        self.order = OrderEngine()
+
+        self.learning = LearningEngine()
+
     # ------------------------------------------------------
-    # AI 리포트 생성
+    # AI Report 생성
     # ------------------------------------------------------
 
     def generate_report(
@@ -32,163 +44,399 @@ class ReportEngine:
         target_date: datetime,
     ):
 
-        accuracy = self.history.get_accuracy()
-        forecast = {}
 
-        for menu in self.history.get_all_menus():
+        try:
 
-            forecast[menu] = (
-                self.forecast.get_prediction(
-                    menu,
-                    target_date,
-                )
+            accuracy = (
+
+                self.history.get_accuracy()
+
             )
 
-        usage = self.order.get_expected_usage(
-            target_date,
-        )
+        except Exception:
 
-        orders = self.order.recommend_order(
-            target_date,
-        )
+            accuracy = 0.0
 
-        stock = self.order.inventory.get_all_stock()
+        forecast = {}
+
+
+        forecast = self.forecast.forecast_result()
+
+        order = {
+
+            "usage": forecast["usage"],
+
+            "shortage": forecast["shortage"],
+
+            "order": self.order.recommend_order(
+
+                forecast["usage"],
+
+            ),
+
+            "stock": self.order.get_current_stock(),
+
+            "receiving": self.order.get_receiving_stock(),
+
+            "safety": {},
+
+        }
 
         return {
             "date": target_date.strftime(
                 "%Y-%m-%d",
             ),
             "accuracy": accuracy,
-            "usage": usage,
-            "orders": orders,
             "forecast": forecast,
-            "stock": stock,
-
+            "usage": order["usage"],
+            "shortage": order["shortage"],
+            "orders": order["order"],
+            "stock": order["stock"],
+            "receiving": order["receiving"],
+            "safety": order["safety"],
         }
 
     # ------------------------------------------------------
-    # AI 리포트 문자열 생성
+    # AI Report 문자열 생성
     # ------------------------------------------------------
+
     def format_report(
         self,
-        report: dict,
-    ) -> str:
+        report,
+    ):
 
         lines = []
 
-        lines.append("🤖 HOMS AI REPORT")
-        lines.append("=" * 35)
-
         lines.append(
-            f"날짜 : {report['date']}"
+            "🤖 HOMS AI REPORT"
         )
 
         lines.append(
-            f"AI 정확도 : {report['accuracy']:.2f}%"
+            "=" * 50
+        )
+
+        lines.append(
+            f"날 짜  : {report['date']}"
+        )
+
+        lines.append(
+            f"AI 정 확 도  : {report['accuracy']:.2f}%"
         )
 
         lines.append("")
 
-        lines.append("[예상 원재료 사용량]")
+        stats = self.learning.get_statistics()
 
-        for ingredient, qty in report["usage"].items():
+        menu_stats = self.learning.get_menu_accuracy()
+
+        if menu_stats:
 
             lines.append(
-                f"- {ingredient} : {qty:.1f}"
+                ""
             )
+
+            lines.append(
+                "[AI 정 확 도 TOP5]"
+            )
+
+            for item in menu_stats[:5]:
+
+                name = "".join(
+                    str(
+                        item["menu"]
+                    ).split()
+                )
+
+                lines.append(
+                    f"{name:<24}"
+                    f"{item['accuracy']:.1f}%"
+                )
+
+        lines.append(
+            "[AI 학 습 결 과]"
+        )
+
+        lines.append(
+            f"학 습 메 뉴 : {stats['count']}"
+        )
+
+        lines.append(
+            f"평 균 오 차 : {stats['avg_error']:.2f}%"
+        )
 
         lines.append("")
 
-        lines.append("[추천 발주]")
+        # --------------------------------------------------
+        # 예 상  원 재 료  사 용 량
+        # --------------------------------------------------
 
-        for ingredient, data in report["orders"].items():
+        lines.append(
+            "[예 상  원 재 료  사 용 량 ]"
+        )
 
-            lines.append(
-                f"- {ingredient}"
+        for ingredient, amount in sorted(
+            report["usage"].items(),
+        ):
+
+            # kg 재고
+            key = "".join(
+                str(ingredient).split()
             )
 
-            lines.append(
-                f"  현재재고 : {data['current_stock']:.1f}"
-            )
+            if key in (
+                "북채",
+                "날개",
+            ):
 
-            lines.append(
-                f"  예상사용 : {data['expected_usage']:.1f}"
-            )
+                lines.append(
+                    f"- {ingredient:<12} {amount:.1f} kg"
+                )
 
-            lines.append(
-                f"  예상잔여 : {data['remaining_stock']:.1f}"
-            )
+            # 태국산 윙봉
+            elif ingredient == "태국산윙봉":
 
-            lines.append(
-                f"  안전재고 : {data['safety_stock']:.1f}"
-            )
+                packs = amount / 20
 
-            lines.append(
-                f"  추천발주 : {data['recommended']}"
-            )
+                lines.append(
+                    f"- {ingredient:<12} {packs:.1f}팩 ({int(round(amount))}P)"
+                )
+
+            # 나머지는 팩
+            else:
+
+                lines.append(
+                    f"- {ingredient:<12} {amount:.1f} 팩"
+                )
 
         lines.append("")
 
-        lines.append("[AI 분석]")
+        # --------------------------------------------------
+        # 추 천  발 주
+        # --------------------------------------------------
 
-        for menu, data in report["forecast"].items():
+        lines.append(
+            "[추 천  발 주 ]"
+        )
 
-            lines.append(menu)
+        if not report["orders"]:
 
             lines.append(
-                f"  예측 : {data['prediction']:.1f}"
+                "발  주   필  요   없  음"
             )
 
-            lines.append(
-                f"  같은요일평균 : {data['weekday_average']:.1f}"
-            )
+        else:
 
-            if "average7" in data:
+            for ingredient, data in sorted(
+                report["orders"].items(),
+            ):
 
-                lines.append(
-                    f"  최근7일평균 : {data['average7']:.1f}"
+                current = report["stock"].get(
+                    ingredient,
+                    0.0,
                 )
 
-            if "average14" in data:
-
-                lines.append(
-                    f"  최근14일평균 : {data['average14']:.1f}"
+                incoming = report["receiving"].get(
+                    ingredient,
+                    0.0,
                 )
 
-            lines.append(
-                f"  최근30일평균 : {data['average30']:.1f}"
+                usage = report["usage"].get(
+                    ingredient,
+                    0.0,
+                )
+
+                safety = report["safety"].get(
+                    ingredient,
+                    0.0,
+                )
+
+                lines.append("")
+
+                lines.append(
+                    ingredient
+                )
+
+                lines.append(
+                    f"  현 재 재 고 : {current:.1f}"
+                )
+
+                lines.append(
+                    f"  입 고 예 정 : {incoming:.1f}"
+                )
+
+                lines.append(
+                    f"  예 상 사 용 : {usage:.1f}"
+                )
+
+                lines.append(
+                    f"  안 전 재 고 : {safety:.1f}"
+                )
+
+                shortage = (
+                    usage
+                    + safety
+                    - current
+                    - incoming
+                )
+
+                if shortage > 0:
+
+                    lines.append(
+                        f"  부 족 수 량 : {shortage:.1f}"
+                    )
+
+                else:
+
+                    lines.append(
+                        "  부 족 수 량 : 없 음"
+                    )
+
+                if current <= 0:
+
+                    lines.append(
+                        "  사 유 : 재 고 없 음"
+                    )
+
+                elif shortage > 0:
+
+                    lines.append(
+                        "  사 유 : 안 전 재 고 부 족"
+                    )
+
+                else:
+
+                    lines.append(
+                        "  사 유 : 재 고 충 분"
+                    )
+
+                if "order_packs" in data:
+
+                    lines.append(
+                        f"  추 천 발 주 : {data['order_packs']}팩"
+                    )
+
+                else:
+
+                    lines.append(
+                        f"  추 천 발 주 : {data['order']}"
+                    )
+
+        # --------------------------------------------------
+        # AI 판 매  예 측
+        # --------------------------------------------------
+
+        lines.append(
+            "[AI 판 매  예 측]"
+        )
+
+        for menu, data in sorted(
+            report["forecast"].items(),
+        ):
+
+            if not self.order.recipe.has_menu(
+                menu,
+            ):
+                continue
+
+            if data[
+                "prediction"
+            ] < 1:
+                continue
+
+            name = "".join(
+                str(menu).split()
+            )
+
+            name = name.replace(
+                ",",
+                "",
+            )
+
+            name = name.replace(
+                "[S]",
+                " S",
+            )
+
+            name = name.replace(
+                "(윙:태국산)",
+                "",
+            )
+
+            name = name.replace(
+                "(날개:태국산)",
+                "",
+            )
+
+            name = name.replace(
+                "(레드디핑포함)",
+                "",
             )
 
             lines.append(
-                f"  최근90일평균 : {data['average90']:.1f}"
+                f"{name:<32}"
+                f"{data['prediction']:.1f}"
             )
 
-            if "trend" in data:
+        return "\n".join(
+            lines
+        )
 
-                lines.append(
-                    f"  최근추세 : {data['trend']:+.1f}%"
-                )
+# ==========================================================
+# Global Engine
+# ==========================================================
 
-            lines.append(
-                f"  AI신뢰도 : {data['confidence']:.1f}%"
-            )
+ENGINE = ReportEngine()
 
-            if "version" in data:
 
-                lines.append(
-                    f"  AI버전 : {data['version']}"
-                )
+# ==========================================================
+# Helper
+# ==========================================================
 
-            lines.append(
-                f"  의견 : {data['opinion']}"
-            )
+def generate_report(
+    target_date=None,
+):
 
-            for reason in data["reasons"]:
+    if target_date is None:
 
-                lines.append(
-                    f"   • {reason}"
-                )
+        target_date = datetime.now()
 
-            lines.append("")
+    return ENGINE.generate_report(
+        target_date,
+    )
 
-        return "\n".join(lines)
+
+def report_text(
+
+    target_date=None,
+
+):
+
+    report = generate_report(
+
+        target_date,
+
+    )
+
+    return ENGINE.format_report(
+
+        report,
+
+    )
+
+
+# ==========================================================
+# Test
+# ==========================================================
+
+if __name__ == "__main__":
+
+    print(
+
+        report_text()
+
+    )
+
+
+# ==========================================================
+# END OF FILE
+# ==========================================================

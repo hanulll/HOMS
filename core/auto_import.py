@@ -34,6 +34,12 @@ from core.path import (
     LOG_DIR,
 )
 
+from core.sales_import_engine import SalesImportEngine
+
+from core.order_import_engine import OrderImportEngine
+
+from core.report_engine import report_text
+
 # ==========================================================
 # 종류
 # ==========================================================
@@ -99,6 +105,57 @@ class AutoImporter:
         logging.info(message)
 
         print(message)
+
+
+    # ------------------------------------------------------
+    # HOMS 파이프라인
+    # ------------------------------------------------------
+
+    def run_pipeline(
+        self,
+    ):
+
+        sales = SalesImportEngine()
+
+        orders = OrderImportEngine()
+
+        print()
+
+        print("=" * 60)
+
+        print("HOMS AUTO IMPORT")
+
+        print("=" * 60)
+
+        sales2130 = sales.import_folder(
+            "2130",
+        )
+
+        sales2355 = sales.import_folder(
+            "2355",
+        )
+
+        receipts = orders.import_orders()
+
+        print()
+
+        print(
+            f"2130 Import : {sales2130}"
+        )
+
+        print(
+            f"2355 Import : {sales2355}"
+        )
+
+        print(
+            f"Receipts    : {len(receipts)}"
+        )
+
+        print()
+
+        print(
+            report_text()
+        )
 
 # ==========================================================
 # 최신 파일 찾기
@@ -278,19 +335,11 @@ class AutoImporter:
 # 실행
 # ==========================================================
 
-def run(file_type: str):
+def run():
 
     importer = AutoImporter()
 
-    result = importer.import_file(file_type)
-
-    print()
-    print("=" * 60)
-    print("HOMS 자동수집 완료")
-    print("=" * 60)
-    print(f"종류 : {file_type}")
-    print(f"저장 : {result}")
-    print("=" * 60)
+    importer.run_pipeline()
 
 # ==========================================================
 # Main
@@ -298,20 +347,7 @@ def run(file_type: str):
 
 def main():
 
-    parser = argparse.ArgumentParser(
-        description="HOMS 자동수집기",
-    )
-
-    parser.add_argument(
-        "type",
-        choices=sorted(VALID_TYPES),
-        help="수집 종류",
-    )
-
-    args = parser.parse_args()
-
-    run(args.type)
-
+    run()
 
 if __name__ == "__main__":
 

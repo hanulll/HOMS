@@ -25,3 +25,18 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Test
+*.testbak
+
+# Screenshots
+*.png
+
+# Local Data
+data/
+
+# Python Cache
+.pytest_cache/
+
+# Jupyter
+.ipynb_checkpoints/

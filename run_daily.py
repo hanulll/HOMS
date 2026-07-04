@@ -67,3 +67,23 @@ def main():
 
 if __name__ == "__main__":
     main()
+    # ------------------------------------------
+    # AI 자동 학습
+    # ------------------------------------------
+
+    learning = LearningEngine()
+
+    actual_sales = {
+        menu: data["prediction"]
+        for menu, data in report["forecast"].items()
+    }
+
+    predictions = {
+        menu: data["prediction"]
+        for menu, data in report["forecast"].items()
+    }
+
+    learning.learn(
+        predictions,
+        actual_sales,
+    )
