@@ -3,6 +3,18 @@ HOMS Receipt Check
 입고 검수
 """
 
+from core.inventory_engine import ENGINE
+
+def apply_receipt(received: dict):
+
+    for ingredient, amount in received.items():
+
+        ENGINE.add_stock(
+            ingredient,
+            amount,
+        )
+
+    return ENGINE.get_all_stock()
 
 def check_receipt(expected: dict, received: dict):
 
