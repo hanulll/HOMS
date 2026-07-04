@@ -39,6 +39,21 @@ class DatabaseEngine:
         self.cursor = self.conn.cursor()
         self.create_tables()
 
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS receipt_history
+            (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                receipt_date TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                ingredient TEXT NOT NULL,
+                quantity REAL NOT NULL
+            )
+            """
+        )
+
+        self.conn.commit()
+
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS order_recommend_history
         (
@@ -183,6 +198,46 @@ class DatabaseEngine:
             """
         )
 
+
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS inventory_current
+            (
+                ingredient TEXT PRIMARY KEY,
+                stock REAL NOT NULL DEFAULT 0,
+                updated_at TIMESTAMP
+                    DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+
+        self.conn.commit()
+
+        from recipes.ingredient_rules import (
+            INGREDIENTS,
+        )
+
+        for ingredient in INGREDIENTS:
+
+            self.cursor.execute(
+                """
+                INSERT OR IGNORE
+                INTO inventory_current
+                (
+                    ingredient,
+                    stock
+                )
+                VALUES
+                (
+                    ?, 0
+                )
+                """,
+                (
+                    ingredient,
+                ),
+            )
+
+        self.conn.commit()
 
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventory_sync_history

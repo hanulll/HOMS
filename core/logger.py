@@ -13,63 +13,28 @@ from config import LOG_DIR
 
 
 class Logger:
-
     def __init__(self, name: str):
-
         self.name = name
+        self.log_file = Path(LOG_DIR) / f"{name}.log"
+        self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
-        self.log_file = (
-            Path(LOG_DIR)
-            / f"{name}.log"
-        )
-
-    def write(
-        self,
-        message: str,
-    ):
-
+    def write(self, message: str):
         now = datetime.now()
-
-        line = (
-            f"[{now:%Y-%m-%d %H:%M:%S}] "
-            f"{message}"
-        )
+        line = f"[{now:%Y-%m-%d %H:%M:%S}] {message}"
 
         print(line)
 
-        with open(
-            self.log_file,
-            "a",
-            encoding="utf-8",
-        ) as f:
+        try:
+            with open(self.log_file, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception as e:
+            print(f"[LOGGER ERROR] Unable to write log: {e}")
 
-            f.write(
-                line + "\n"
-            )
+    def info(self, message: str):
+        self.write("[INFO] " + message)
 
-    def info(
-        self,
-        message: str,
-    ):
+    def warning(self, message: str):
+        self.write("[WARN] " + message)
 
-        self.write(
-            "[INFO] " + message
-        )
-
-    def warning(
-        self,
-        message: str,
-    ):
-
-        self.write(
-            "[WARN] " + message
-        )
-
-    def error(
-        self,
-        message: str,
-    ):
-
-        self.write(
-            "[ERROR] " + message
-        )
+    def error(self, message: str):
+        self.write("[ERROR] " + message)

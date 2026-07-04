@@ -36,6 +36,9 @@ from core.telegram_sender import (
     send_message,
 )
 
+from core.backtest_engine import (
+    BacktestEngine,
+)
 
 class Pipeline:
 
@@ -50,6 +53,8 @@ class Pipeline:
         self.receipt = ReceiptEngine()
 
         self.learning = LearningEngine()
+
+        self.backtest = BacktestEngine()
 
     # ------------------------------------------------------
     # 실행
@@ -83,6 +88,8 @@ class Pipeline:
 
         learned = 0
 
+        accuracy = 0.0
+
         if sales2355 > 0:
 
             today = datetime.now().strftime(
@@ -105,6 +112,10 @@ class Pipeline:
                 today,
             )
 
+            accuracy = self.backtest.run_day(
+                today,
+            )
+
         # ---------------------------------
         # 입고 확인
         # ---------------------------------
@@ -123,6 +134,10 @@ class Pipeline:
 
         print(
             f"Learned     : {learned}"
+        )
+
+        print(
+            f"Backtest    : {accuracy:.2f}%"
         )
 
         print()

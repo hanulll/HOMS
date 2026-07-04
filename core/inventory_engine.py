@@ -66,50 +66,42 @@ class InventoryEngine:
             / "inventory.json"
         )
 
+        self.recipe_engine = RecipeEngine()
+
         self.load_inventory()
 
     # ------------------------------------------------------
     # 재고 차감
     # ------------------------------------------------------
+
     def consume_stock(
         self,
         usage: dict,
     ):
+
         for ingredient, amount in usage.items():
+
+            if ingredient not in self.inventory:
+                continue
+
+            current = self.inventory[ingredient]
+            new_stock = max(0.0, current - float(amount))
 
             self.db.execute(
                 """
                 UPDATE inventory_current
                 SET
-                    stock = stock - ?,
+                    stock = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE ingredient = ?
                 """,
                 (
-                    amount,
+                    new_stock,
                     ingredient,
                 ),
             )
 
-            self.db.execute(
-                """
-                INSERT INTO prep_history
-                (
-                    ingredient,
-                    quantity,
-                    memo
-                )
-                VALUES
-                (
-                    ?, ?, ?
-                )
-                """,
-                (
-                    ingredient,
-                    -amount,
-                    "2355 AUTO CONSUME",
-                ),
-            )
+        self.load_inventory()
 
     # ------------------------------------------------------
     # 저장
@@ -195,10 +187,14 @@ class InventoryEngine:
         amount: float,
     ):
 
+        if ingredient not in self.inventory:
+            return False
+
         self.inventory[ingredient] = float(amount)
 
         self.save_inventory()
 
+        return True
 
     # ------------------------------------------------------
     # 입고
@@ -225,14 +221,17 @@ class InventoryEngine:
         amount: float,
     ):
 
+        if ingredient not in self.inventory:
+            return False
+
         self.inventory[ingredient] -= float(amount)
 
         if self.inventory[ingredient] < 0:
-
-            self.inventory[ingredient] = 0
+            self.inventory[ingredient] = 0.0
 
         self.save_inventory()
 
+        return True
 
     # ------------------------------------------------------
     # 재고 초기화
@@ -243,6 +242,25 @@ class InventoryEngine:
         self.inventory = create_inventory_dict()
 
         self.save_inventory()
+
+    # ------------------------------------------------------
+    # 실재고 일괄 반영
+    # ------------------------------------------------------
+
+    def apply_real_inventory(
+        self,
+        stocks: Dict[str, float],
+    ):
+
+        for ingredient, amount in stocks.items():
+
+            if ingredient not in self.inventory:
+                continue
+
+            self.inventory[ingredient] = float(amount)
+
+        self.save_inventory()
+
     # ------------------------------------------------------
     # 판매량 기준 자동 차감
     # ------------------------------------------------------
@@ -256,20 +274,14 @@ class InventoryEngine:
             sales
         )
 
-        for ingredient, amount in usage.items():
+        if not usage:
+            return {}
 
-            if ingredient not in self.inventory:
-                continue
-
-            self.inventory[ingredient] -= float(amount)
-
-            if self.inventory[ingredient] < 0:
-                self.inventory[ingredient] = 0
-
-        self.save_inventory()
+        self.consume_stock(
+            usage
+        )
 
         return usage
-
 
     # ------------------------------------------------------
     # 원재료 사용량만 계산

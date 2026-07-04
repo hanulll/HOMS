@@ -118,6 +118,45 @@ class OrderEngine:
         return target
 
     # ------------------------------------------------------
+    # AI Safety Stock
+    # ------------------------------------------------------
+
+    def get_safety_stock(
+        self,
+    ):
+
+        rows = self.db.fetchall(
+            """
+            SELECT
+                ingredient,
+                AVG(quantity) AS avg_qty
+            FROM receipt_history
+            WHERE receipt_date >= date(
+                'now',
+                '-30 day'
+            )
+            GROUP BY ingredient
+            """
+        )
+
+        result = {}
+
+        for row in rows:
+
+            qty = float(
+                row["avg_qty"]
+            )
+
+            result[
+                row["ingredient"]
+            ] = round(
+                qty * 0.20,
+                2,
+            )
+
+        return result
+
+    # ------------------------------------------------------
     # 판매 → 원재료 사용량
     # ------------------------------------------------------
 
@@ -224,6 +263,8 @@ class OrderEngine:
 
         incoming = self.get_receiving_stock()
 
+        safety = self.get_safety_stock()
+
         shortage = defaultdict(
             float,
         )
@@ -254,18 +295,15 @@ class OrderEngine:
 
                 current *= 20
 
-            safety = SAFETY_STOCK.get(
+            safety_stock = safety.get(
                 ingredient,
-                SAFETY_STOCK.get(
-                    key,
-                    0,
-                ),
+                0,
             )
 
             remain = (
                 current
                 - amount
-                - safety
+                - safety_stock
             )
 
             if remain < 0:

@@ -144,13 +144,6 @@ class BacktestEngine:
         return accuracy
 
 
-        return {
-
-            "prediction": prediction,
-
-            "actual": actual,
-
-        }
 
     # ------------------------------------------------------
     # MAPE 계산
@@ -225,35 +218,24 @@ class BacktestEngine:
     # ------------------------------------------------------
 
     def save_result(
-
         self,
-
         sales_date,
-
         prediction,
-
         actual,
-
     ):
 
         for menu, predict in prediction.items():
 
             real = actual.get(
-
                 menu,
-
                 0,
-
             )
 
             error = abs(
-
                 predict - real
-
             )
 
             self.db.execute(
-
                 """
                 INSERT INTO forecast_history
                 (
@@ -262,14 +244,14 @@ class BacktestEngine:
                     prediction,
                     actual,
                     error,
-                    confidence
+                    confidence,
+                    version
                 )
                 VALUES
                 (
-                    ?, ?, ?, ?, ?, ?
+                    ?, ?, ?, ?, ?, ?, ?
                 )
                 """,
-
                 (
                     sales_date,
                     menu,
@@ -277,10 +259,9 @@ class BacktestEngine:
                     real,
                     error,
                     95,
+                    "v1.1",
                 ),
-
             )
-
 
     # ------------------------------------------------------
     # 실제 판매 반영
