@@ -27,6 +27,10 @@ from core.database_engine import (
     DatabaseEngine,
 )
 
+from core.predictors.predictor_manager import PredictorManager
+
+import json
+
 # ==========================================================
 # Path
 # ==========================================================
@@ -50,6 +54,7 @@ class ForecastEngine:
 
         self.inventory_engine = InventoryEngine()
 
+        self.predictor = PredictorManager()
     # ------------------------------------------------------
     # 오늘
     # ------------------------------------------------------
@@ -217,6 +222,58 @@ class ForecastEngine:
         return result
 
     # ------------------------------------------------------
+    # 최근 7일 평균 판매
+    # ------------------------------------------------------
+
+    def recent_sales(
+
+        self,
+
+        days: int = 7,
+
+    ) -> Dict[str, float]:
+
+        rows = self.db.fetchall(
+
+            """
+            SELECT
+                menu,
+                AVG(qty) AS avg_qty
+            FROM sales_history
+            WHERE source='2355'
+              AND sales_date >= date(
+                    'now',
+                    ?
+              )
+            GROUP BY menu
+            """,
+
+            (
+                f"-{days} day",
+            ),
+
+        )
+
+        result = {}
+
+        for row in rows:
+
+            result[
+                row["menu"]
+            ] = round(
+
+                float(
+                    row["avg_qty"]
+                ),
+
+                2,
+
+            )
+
+        return result
+
+
+    # ------------------------------------------------------
     # 오늘 21:30 판매(DB)
     # ------------------------------------------------------
 
@@ -298,6 +355,178 @@ class ForecastEngine:
 
         return forecast
 
+    # ------------------------------------------------------
+    # AI 예측 합성
+    # ------------------------------------------------------
+
+    def blend_sales(
+
+        self,
+
+        average,
+
+        recent,
+
+        today,
+
+    ):
+
+        weights = self.load_weights()
+
+        avg_w = weights.get(
+
+            "average",
+
+            0.50,
+
+        )
+
+        rec_w = weights.get(
+
+            "recent",
+
+            0.30,
+
+        )
+
+        today_w = weights.get(
+
+            "today",
+
+            0.20,
+
+        )
+
+        result = {}
+
+        menus = set(
+
+            average
+
+        ) | set(
+
+            recent
+
+        ) | set(
+
+            today
+
+        )
+
+        for menu in menus:
+
+            avg = average.get(
+
+                menu,
+
+                0,
+
+            )
+
+            rec = recent.get(
+
+                menu,
+
+                avg,
+
+            )
+
+            now = today.get(
+
+                menu,
+
+                0,
+
+            )
+
+            result[
+                menu
+            ] = round(
+
+                avg * avg_w
+
+                +
+
+                rec * rec_w
+
+                +
+
+                now * today_w,
+
+                2,
+
+            )
+
+        return result
+
+    # ------------------------------------------------------
+    # AI 오차 보정
+    # ------------------------------------------------------
+
+    def learning_adjust(
+
+        self,
+
+        prediction,
+
+    ):
+
+        rows = self.db.fetchall(
+
+            """
+            SELECT
+                menu,
+                average_error
+            FROM forecast_learning
+            """
+
+        )
+
+        result = dict(
+            prediction
+        )
+
+        for row in rows:
+
+            menu = row[
+                "menu"
+            ]
+
+            if menu not in result:
+
+                continue
+
+            error = float(
+
+                row[
+                    "average_error"
+                ]
+
+            )
+
+            result[
+                menu
+            ] = round(
+
+                result[
+                    menu
+                ]
+
+                *
+
+                (
+                    1
+                    -
+                    error
+                    /
+                    100
+                ),
+
+                2,
+
+            )
+
+        return result
 
     # ------------------------------------------------------
     # 예상 판매량 계산
@@ -307,24 +536,52 @@ class ForecastEngine:
         self,
     ) -> Dict[str, float]:
 
+        try:
+
+            prediction = self.predictor.predict()
+
+            if prediction:
+
+                return self.learning_adjust(
+                    prediction,
+                )
+
+        except Exception as e:
+
+            print(
+                f"[Predictor] {e}"
+            )
+
+        # --------------------------------------------------
+        # Fallback
+        # 기존 Forecast Engine 사용
+        # --------------------------------------------------
+
         target = self.target_weekday()
 
-
         average = self.average_sales(
-            target,
+            target
         )
 
+        recent = self.recent_sales()
 
         today = self.get_today_sales()
 
+        prediction = self.blend_sales(
 
-        merged = self.merge_today_sales(
             average,
+
+            recent,
+
             today,
+
         )
 
+        return self.learning_adjust(
 
-        return merged
+            prediction,
+
+        )
 
     # ------------------------------------------------------
     # 예상 원재료 사용량
@@ -413,6 +670,47 @@ class ForecastEngine:
             "inventory": remain,
             "shortage": shortage,
         }
+
+    # ------------------------------------------------------
+    # Forecast Weight
+    # ------------------------------------------------------
+
+    def load_weights(
+        self,
+    ):
+
+        import json
+
+        from pathlib import Path
+
+        path = Path(
+            "~/HOMS/data/forecast_weights.json"
+        ).expanduser()
+
+        if not path.exists():
+
+            return {
+
+                "average": 0.50,
+
+                "recent": 0.30,
+
+                "today": 0.20,
+
+            }
+
+        with open(
+
+            path,
+
+            "r",
+
+            encoding="utf-8",
+
+        ) as f:
+
+            return json.load(f)
+
 # ==========================================================
 # Singleton
 # ==========================================================
