@@ -93,6 +93,48 @@ class PrepEngine:
 
         return float(row["quantity"])
 
+    # ------------------------------------------------------
+    # 소 분  재 고  설 정
+    # ------------------------------------------------------
+    def set_current_prep(
+        self,
+        product: str,
+        quantity: float,
+    ):
+        self.db.execute(
+            """
+            UPDATE prep_inventory
+            SET
+                quantity=?,
+                updated_at=CURRENT_TIMESTAMP
+            WHERE product=?
+            """,
+            (
+                quantity,
+                product,
+            ),
+        )
+
+    # ------------------------------------------------------
+    # 전 체  소 분  재 고
+    # ------------------------------------------------------
+    def get_all_prep(
+        self,
+    ):
+        rows = self.db.fetchall(
+            """
+            SELECT
+                product,
+                quantity
+            FROM prep_inventory
+            """
+        )
+        return {
+            row["product"]: float(
+                row["quantity"]
+            )
+            for row in rows
+        }
 
     # ------------------------------------------------------
     # 예상 판매량 계산
@@ -169,3 +211,9 @@ class PrepEngine:
             "ai_adjustment": 0,
         }
 
+
+# ==========================================================
+# Global Engine
+# ==========================================================
+
+ENGINE = PrepEngine()
