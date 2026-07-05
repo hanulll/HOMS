@@ -248,6 +248,48 @@ class ReceiptEngine:
             )
 
         return True
+
+    # ------------------------------------------------------
+    # 입 고  예 정  조 회
+    # ------------------------------------------------------
+    def get_expected_receipts(
+        self,
+        delivery_date=None,
+    ):
+
+        if delivery_date is None:
+
+            from datetime import datetime
+
+            delivery_date = datetime.today().strftime(
+                "%Y-%m-%d"
+            )
+
+        rows = self.db.fetchall(
+            """
+            SELECT
+                ingredient,
+                quantity
+            FROM receipt_schedule
+            WHERE
+                delivery_date=?
+                AND status='confirmed'
+            """,
+            (
+                delivery_date,
+            ),
+        )
+
+        result = {}
+
+        for row in rows:
+
+            result[
+                row["ingredient"]
+            ] = row["quantity"]
+
+        return result
+
     # ------------------------------------------------------
     # 입고 파일 처리
     # ------------------------------------------------------

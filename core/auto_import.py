@@ -40,6 +40,8 @@ from core.order_import_engine import OrderImportEngine
 
 from core.report_engine import report_text
 
+from core.receipt_check import check_receipt
+
 # ==========================================================
 # 종류
 # ==========================================================
