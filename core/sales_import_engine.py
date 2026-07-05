@@ -7,6 +7,10 @@ sales_2130 / sales_2355 / history Import
 
 import re
 
+from core.text_utils import (
+    normalize_menu,
+)
+
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -61,19 +65,6 @@ class SalesImportEngine:
             reverse=False,
 
         )
-
-    # ------------------------------------------------------
-    # 메뉴명 정리
-    # ------------------------------------------------------
-    def normalize_menu(
-        self,
-        menu: str,
-    ) -> str:
-
-        if menu is None:
-            return ""
-
-        return re.sub(r"\s+", "", str(menu), flags=re.UNICODE)
 
     # ------------------------------------------------------
     # 판매 저장
@@ -223,7 +214,7 @@ class SalesImportEngine:
             if not row:
                 continue
 
-            menu = self.normalize_menu(
+            menu = normalize_menu(
                 row[1],
             )
 
