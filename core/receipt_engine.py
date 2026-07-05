@@ -12,6 +12,7 @@ from openpyxl import load_workbook
 
 from core.database_engine import DatabaseEngine
 
+from datetime import datetime
 
 # ==========================================================
 # 품목 매핑
@@ -223,6 +224,26 @@ class ReceiptEngine:
                 (
                     quantity,
                     ingredient,
+                ),
+            )
+
+            today = datetime.today().strftime(
+                "%Y-%m-%d"
+            )
+
+            self.db.execute(
+                """
+                UPDATE receipt_schedule
+                SET
+                    status='received'
+                WHERE
+                    ingredient=?
+                    AND status='confirmed'
+                    AND delivery_date<=?
+                """,
+                (
+                    ingredient,
+                    today,
                 ),
             )
 
