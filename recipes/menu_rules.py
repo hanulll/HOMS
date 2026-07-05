@@ -340,47 +340,20 @@ def get_menu_type(
 
             return menu_type
 
-    # ----------------------------------------
-    # 태국산 윙 자동 처리
-    # ----------------------------------------
+# ==========================================================
+# 메  뉴   정  규  화
+# ==========================================================
+def normalize_menu(
+    menu_name,
+):
+    from core.text_utils import (
+        normalize_menu as normalize_text_menu,
+    )
 
-    if "싱글윙6P" in target:
+    return normalize_text_menu(
+        menu_name,
+    )
 
-        return "THAI_SINGLE_WING"
-
-    if "윙박스16P" in target:
-
-        return "THAI_WING_BOX16"
-
-    if "윙박스20P" in target:
-
-        return "THAI_WING_BOX20"
-
-    return None
-
-    # 1. 정확히 등록된 메뉴 우선
-    for key, value in MENU_RULES.items():
-
-        if "".join(str(key).split()) == menu:
-
-            return value
-
-    # 2. 태국산 싱글윙
-    if "싱글윙6P" in menu:
-
-        return "THAI_SINGLE_WING"
-
-    # 3. 태국산 윙박스16P
-    if "윙박스16" in menu:
-
-        return "THAI_WING_BOX16"
-
-    # 4. 태국산 윙박스20P
-    if "윙박스20P" in menu:
-
-        return "THAI_WING_BOX20"
-
-    return None
 
 # ==========================================================
 # END OF FILE
