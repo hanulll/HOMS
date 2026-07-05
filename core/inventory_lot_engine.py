@@ -104,5 +104,70 @@ class InventoryLotEngine:
             """
         )
 
+    # ------------------------------------------------------
+    # FIFO 차감
+    # ------------------------------------------------------
+    def use_lot(
+        self,
+        ingredient: str,
+        quantity: float,
+    ):
+
+        remain = float(
+            quantity,
+        )
+
+        lots = self.get_lots(
+            ingredient,
+        )
+
+        for lot in lots:
+
+            if remain <= 0:
+                break
+
+            lot_qty = float(
+                lot["quantity"],
+            )
+
+            # 전부 사용
+            if lot_qty <= remain:
+
+                self.db.execute(
+                    """
+                    UPDATE inventory_lots
+                    SET
+                        quantity=0,
+                        status='USED'
+                    WHERE id=?
+                    """,
+                    (
+                        lot["id"],
+                    ),
+                )
+
+                remain -= lot_qty
+
+            # 일부만 사용
+            else:
+
+                self.db.execute(
+                    """
+                    UPDATE inventory_lots
+                    SET
+                        quantity=?
+                    WHERE id=?
+                    """,
+                    (
+                        lot_qty - remain,
+                        lot["id"],
+                    ),
+                )
+
+                remain = 0
+
+        return remain
+
 
 ENGINE = InventoryLotEngine()
+
