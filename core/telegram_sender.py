@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import requests
 
-BOT_TOKEN = "8710420921:AAHIWQQsLGKe6FarVVzaaQCVm4TBTFBicbw"
+BOT_TOKEN = "8961021564:AAGFcnPiUjgxQFauvyn1BI5H9Z9d8yEVdMw"
 CHAT_ID = "8969413528"
 
 

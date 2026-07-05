@@ -4,6 +4,10 @@ HOMS Manager Engine
 
 from core.inventory_engine import ENGINE
 
+from core.ui_text import (
+    MENU_MASTER,
+    MENU_MANAGER,
+)
 
 def morning_check():
 
@@ -81,6 +85,48 @@ def morning_brief():
     print("4. 22:00 발주 확인")
 
     print("=" * 50)
+
+# ------------------------------------------------------
+# HOMS Manager Engine
+# ------------------------------------------------------
+class ManagerEngine:
+
+    # --------------------------------------------------
+    # 오늘 매장 브리핑
+    # --------------------------------------------------
+    def get_today_report(
+        self,
+    ):
+
+        stock = ENGINE.get_all_stock()
+
+        return {
+
+            "title": "🤖 HOMS 매장 브리핑",
+
+            "inventory": stock,
+
+            "alerts": [],
+
+            "message": "좋은 하루 되세요!",
+
+        }
+
+    # --------------------------------------------------
+    # Manager 메뉴
+    # --------------------------------------------------
+
+    def get_master_menu(
+        self,
+    ):
+        return MENU_MASTER.copy()
+
+    def get_manager_menu(
+        self,
+    ):
+        return MENU_MASTER.copy()
+
+MANAGER = ManagerEngine()
 
 if __name__ == "__main__":
 

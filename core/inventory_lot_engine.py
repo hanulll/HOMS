@@ -7,6 +7,10 @@ Lot 기반 재고 관리
 
 from __future__ import annotations
 
+from core.ingredient_name import (
+    normalize,
+)
+
 from datetime import datetime
 
 from core.database_engine import DatabaseEngine
@@ -64,26 +68,44 @@ class InventoryLotEngine:
     # ------------------------------------------------------
     # Lot 조회
     # ------------------------------------------------------
+
     def get_lots(
         self,
-        ingredient: str,
+        ingredient,
     ):
 
-        return self.db.fetchall(
-            """
-            SELECT
-                *
-            FROM inventory_lots
-            WHERE ingredient=?
-            AND status='ACTIVE'
-            ORDER BY
-                received_date ASC,
-                id ASC
-            """,
-            (
-                ingredient,
-            ),
+        target = normalize(
+            ingredient,
         )
+
+        rows = self.db.fetchall(
+            """
+            SELECT *
+            FROM inventory_lots
+            WHERE status='ACTIVE'
+            ORDER BY
+                received_date,
+                id
+            """
+        )
+
+        result = []
+
+        for row in rows:
+
+            if (
+                normalize(
+                    row["ingredient"],
+                )
+                ==
+                target
+            ):
+
+                result.append(
+                    row,
+                )
+
+        return result
 
     # ------------------------------------------------------
     # 전체 Lot

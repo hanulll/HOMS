@@ -12,6 +12,7 @@ import math
 from core.config import (
     ORDER_UNIT,
     SAFETY_STOCK,
+    ORDER_DISPLAY,
 )
 
 from collections import defaultdict
@@ -544,6 +545,90 @@ class OrderEngine:
 
         return result
 
+    # ------------------------------------------------------
+    # 발주 화면 표시용
+    # ------------------------------------------------------
+    def get_display_orders(
+        self,
+        sales=None,
+    ):
+
+        orders = self.recommend_order(
+            sales,
+        )
+
+        result = []
+
+        for ingredient, data in orders.items():
+
+            name = "".join(
+                str(
+                    ingredient,
+                ).split()
+            )
+
+            display_info = ORDER_DISPLAY.get(
+                name,
+            )
+
+            if display_info is None:
+
+                continue
+
+            display_name = display_info[
+                "display"
+            ]
+
+            size = display_info[
+                "size"
+            ]
+
+            required = data.get(
+                "order",
+                0,
+            )
+
+            count = int(
+                required / size
+            )
+
+            if count <= 0:
+
+                count = 1
+
+            order_quantity = count * size
+
+            if display_name in (
+                "봉",
+                "박스",
+            ):
+
+                quantity_text = (
+                    f"{count}{display_name}"
+                )
+
+            else:
+
+                quantity_text = (
+                    f"{order_quantity}{display_name}"
+                )
+
+            result.append(
+                {
+                    "ingredient": ingredient,
+                    "count": count,
+                    "display": display_name,
+                    "quantity": quantity_text,
+                    "reason": "현재 재고와 예상 판매량을 기준으로 계산했습니다.",
+                }
+            )
+
+        delivery = self.get_delivery_date()
+
+        return {
+            "delivery": delivery,
+            "orders": result,
+        }
 
 # ==========================================================
 # Global Engine

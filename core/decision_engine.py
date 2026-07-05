@@ -11,11 +11,13 @@ from copy import deepcopy
 
 from core.forecast_engine import ENGINE as FORECAST
 from core.note_engine import ENGINE as NOTES
+from core.inventory_engine import InventoryEngine
+from core.prep_engine import PrepEngine
+from core.inventory_lot_engine import InventoryLotEngine
 
 from core.text_utils import (
     normalize_menu,
 )
-
 class DecisionEngine:
 
     def __init__(
@@ -23,6 +25,9 @@ class DecisionEngine:
     ):
         self.forecast_engine = FORECAST
         self.notes = NOTES
+        self.inventory = InventoryEngine()
+        self.prep = PrepEngine()
+        self.inventory_lot = InventoryLotEngine()
 
     # ------------------------------------------------------
     # Note 적용
@@ -103,18 +108,6 @@ class DecisionEngine:
         return result
 
     # ------------------------------------------------------
-    # 최 종  Forecast
-    # ------------------------------------------------------
-    def forecast(
-        self,
-    ):
-        prediction = self.forecast_engine.forecast_sales()
-
-        return self.apply_notes(
-            prediction,
-        )
-
-    # ------------------------------------------------------
     # 최종 Forecast
     # ------------------------------------------------------
     def forecast(
@@ -127,6 +120,62 @@ class DecisionEngine:
             prediction,
         )
 
+    # ------------------------------------------------------
+    # 오늘 먼저 사용할 재고
+    # ------------------------------------------------------
+    def get_today_first(
+        self,
+    ):
+
+        result = []
+
+        for ingredient in self.inventory.get_all_stock():
+
+            lots = self.inventory_lot.get_lots(
+                ingredient,
+            )
+
+            if not lots:
+                continue
+
+            oldest = lots[0]
+
+            result.append(
+                {
+                    "ingredient": ingredient,
+                    "received_date": oldest[
+                        "received_date"
+                    ],
+                    "quantity": oldest[
+                        "quantity"
+                    ],
+                }
+            )
+
+        return result
+
+
+    # ------------------------------------------------------
+    # 오 늘  매 장  브 리 핑
+    # ------------------------------------------------------
+    def get_today_briefing(
+        self,
+    ):
+        inventory = InventoryEngine()
+        prep = PrepEngine()
+
+        return {
+            "date": None,
+            "forecast": self.forecast(),
+            "inventory": inventory.get_all_stock(),
+            "prep": prep.get_all_prep(),
+            "today_first": self.get_today_first(),
+            "prep_recommend": [],
+            "order_recommend": [],
+            "alerts": [],
+            "ai_confidence": None,
+            "today_message": "",
+        }
 
 # ==========================================================
 # Global Engine

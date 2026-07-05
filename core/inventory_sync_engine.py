@@ -77,9 +77,6 @@ class InventorySyncEngine:
         if exists:
             return {}
 
-        sales = self.get_sales(
-            sales_date,
-        )
 
         sales = self.get_sales(
             sales_date,

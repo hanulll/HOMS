@@ -160,6 +160,22 @@ for ingredient in ingredients:
 
 print("[OK] inventory_current")
 
+# ----------------------------------------------------------
+# INVENTORY SESSION
+# ----------------------------------------------------------
+cur.execute("""
+CREATE TABLE IF NOT EXISTS inventory_session(
+    chat_id INTEGER PRIMARY KEY,
+    step INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'ACTIVE',
+    data TEXT DEFAULT '{}',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+print("[OK] inventory_session")
+
+
 conn.commit()
 
 conn.close()
