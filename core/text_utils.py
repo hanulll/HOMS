@@ -12,12 +12,21 @@ def normalize_text(text):
     )
 
 
-def normalize_menu(menu):
-
-    return normalize_text(
-        menu
+def normalize_menu(
+    menu,
+):
+    menu = normalize_text(
+        menu,
     )
 
+    menu = menu.replace(
+        ",",
+        "",
+    )
+
+    menu = menu.upper()
+
+    return menu
 
 def normalize_ingredient(ingredient):
 
