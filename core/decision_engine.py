@@ -12,7 +12,9 @@ from copy import deepcopy
 from core.forecast_engine import ENGINE as FORECAST
 from core.note_engine import ENGINE as NOTES
 
-from recipes.recipe_rules import normalize_menu
+from core.text_utils import (
+    normalize_menu,
+)
 
 class DecisionEngine:
 
