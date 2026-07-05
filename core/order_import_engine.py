@@ -19,6 +19,8 @@ from core.inventory_engine import InventoryEngine
 
 from core.database_engine import DatabaseEngine
 
+from core.receipt_engine import ReceiptEngine
+
 ORDER_PATH = Path(
     "/home/hanul/koms_data/orders"
 )
@@ -26,11 +28,14 @@ ORDER_PATH = Path(
 
 class OrderImportEngine:
 
-    def __init__(self):
-
+    def __init__(
+        self,
+    ):
         self.inventory = InventoryEngine()
 
         self.db = DatabaseEngine()
+
+        self.receipt = ReceiptEngine()
 
     def latest_files(self):
 
@@ -142,65 +147,33 @@ class OrderImportEngine:
     def import_orders(
         self,
     ):
-        from datetime import datetime
-
         imported = {}
-
-        today = datetime.today().strftime("%Y-%m-%d")
 
         for path in self.raw_files():
 
-            if self.already_imported(path.name):
+            if self.already_imported(
+                path.name,
+            ):
                 continue
 
-            items = self.read_order_file(path)
-            items = self.convert_items(items)
+            items = self.read_order_file(
+                path,
+            )
+
+            items = self.convert_items(
+                items,
+            )
+
+            self.receipt.apply_receipt(
+                path.name,
+                items,
+            )
 
             for ingredient, qty in items.items():
 
-                self.inventory.add_stock(
-                    ingredient,
-                    qty,
-                )
-
-                self.db.execute(
-                    """
-                    UPDATE receipt_schedule
-                    SET
-                        status='received'
-                    WHERE
-                        ingredient=?
-                        AND status='confirmed'
-                        AND delivery_date
-                   """,
-                    (
-                        ingredient,
-                    ),
-                )
-
-                self.db.execute(
-                    """
-                    INSERT INTO receipt_history
-                    (
-                        receipt_date,
-                        file_name,
-                        ingredient,
-                        quantity
-                    )
-                    VALUES
-                    (
-                        ?, ?, ?, ?
-                    )
-                    """,
-                    (
-                        today,
-                        path.name,
-                        ingredient,
-                        qty,
-                    ),
-                )
-
-                imported[ingredient] = (
+                imported[
+                    ingredient
+                ] = (
                     imported.get(
                         ingredient,
                         0,
