@@ -15,6 +15,9 @@ from pathlib import Path
 
 import pandas as pd
 
+from core.text_utils import (
+    normalize_menu,
+)
 
 class Parser:
 
@@ -73,16 +76,6 @@ class Parser:
             raise ValueError("판매수량 컬럼을 찾을 수 없습니다.")
 
         return menu_col, qty_col
-    # ------------------------------------------------------
-    # 메뉴명 정규화
-    # ------------------------------------------------------
-
-    def normalize_menu(
-        self,
-        menu: str,
-    ) -> str:
-
-        return "".join(str(menu).split())
 
     # ------------------------------------------------------
     # 메뉴별 판매량 추출
@@ -107,7 +100,7 @@ class Parser:
             if pd.isna(menu):
                 continue
 
-            menu = self.normalize_menu(menu)
+            menu = normalize_menu(menu)
 
             if menu == "합계":
                 continue
