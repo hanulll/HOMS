@@ -67,6 +67,25 @@ class DatabaseEngine:
         """)
         self.conn.commit()
 
+        self.cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS manager_notes
+            (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                note_date TEXT NOT NULL,
+                note_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                target TEXT NOT NULL DEFAULT 'ALL',
+                content TEXT NOT NULL,
+                impact REAL DEFAULT 0,
+                status TEXT DEFAULT 'ACTIVE',
+                created_at TIMESTAMP
+                    DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        self.conn.commit()
+
  # ------------------------------------------------------
     # 테이블 생성
     # ------------------------------------------------------
@@ -180,6 +199,21 @@ class DatabaseEngine:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         """)
+
+        self.cursor.execute("""
+        CREATE TABLE IF NOT EXISTS receipt_schedule
+        (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_date TEXT NOT NULL,
+            delivery_date TEXT NOT NULL,
+            ingredient TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            unit TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """)
+        self.conn.commit()
 
 
         self.execute(

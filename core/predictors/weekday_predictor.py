@@ -21,26 +21,36 @@ class WeekdayPredictor:
         self.db = DatabaseEngine()
 
     # ------------------------------------------------------
-    # 대상 요일
+    # 대 상  요 일
     # ------------------------------------------------------
-
     @staticmethod
-    def target_weekday():
+    def target_weekday(
+        target_date=None,
+    ):
+
+        if target_date is not None:
+
+            return target_date.weekday()
 
         today = date.today()
 
         weekday = today.weekday()
 
         if weekday == 4:
+
             lead = 3
 
         elif weekday == 5:
+
             return None
 
         else:
+
             lead = 2
 
-        return (weekday + lead) % 7
+        return (
+            weekday + lead
+        ) % 7
 
     # ------------------------------------------------------
     # 동일 요일 평균 판매
@@ -48,9 +58,12 @@ class WeekdayPredictor:
 
     def predict(
         self,
+        target_date=None,
     ) -> Dict[str, float]:
 
-        target = self.target_weekday()
+        target = self.target_weekday(
+            target_date,
+        )
 
         if target is None:
 

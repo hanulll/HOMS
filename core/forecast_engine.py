@@ -127,22 +127,24 @@ class ForecastEngine:
         )
 
     # ------------------------------------------------------
-    # 대상 요일
+    # 대 상  요 일
     # ------------------------------------------------------
-
     @staticmethod
-    def target_weekday(today=None):
+    def target_weekday(
+        target_date=None,
+    ):
 
-        target = ForecastEngine.target_date(
-            today
-        )
+        if target_date is not None:
+
+            return target_date.weekday()
+
+        target = ForecastEngine.target_date()
 
         if target is None:
 
             return None
 
         return target.weekday()
-
 
     # ------------------------------------------------------
     # 동일 요일 판매 조회(DB)
@@ -529,28 +531,129 @@ class ForecastEngine:
         return result
 
     # ------------------------------------------------------
-    # 예상 판매량 계산
+    # 예 상  판 매 량 계 산
     # ------------------------------------------------------
-
     def forecast_sales(
         self,
+        target_date=None,
     ) -> Dict[str, float]:
 
         try:
 
-            prediction = self.predictor.predict()
+            prediction = self.predictor.predict(
+                target_date,
+            )
 
             if prediction:
 
-                return self.learning_adjust(
+                prediction = self.learning_adjust(
                     prediction,
                 )
+
+
+                return prediction
 
         except Exception as e:
 
             print(
                 f"[Predictor] {e}"
             )
+
+        # --------------------------------------------------
+        # Fallback
+        # --------------------------------------------------
+
+        target = self.target_weekday(
+            target_date,
+        )
+
+        average = self.average_sales(
+            target,
+        )
+
+        recent = self.recent_sales()
+
+        today = self.get_today_sales()
+
+        prediction = self.blend_sales(
+            average,
+            recent,
+            today,
+        )
+
+        prediction = self.learning_adjust(
+            prediction,
+        )
+
+        recipe_menus = set(
+            self.recipe_engine.recipes.keys()
+        )
+
+        prediction = {
+            menu: qty
+            for menu, qty in prediction.items()
+            if menu in recipe_menus
+        }
+
+        return prediction
+
+    # ------------------------------------------------------
+    # 특정 날짜 Forecast
+    # ------------------------------------------------------
+    def forecast_by_date(
+        self,
+        target_date,
+    ):
+
+        print(
+            f"Forecast : {target_date}"
+        )
+
+        return self.forecast_sales(
+            target_date,
+        )
+
+    # ------------------------------------------------------
+    # 발주기간 Forecast
+    # ------------------------------------------------------
+    def forecast_order_period(
+        self,
+    ):
+
+        from core.order_calendar import (
+            get_target_dates,
+        )
+
+        result = {}
+
+        targets = get_target_dates()
+
+        print("=" * 50)
+        print("Forecast Order Period")
+        print("=" * 50)
+
+        for target in targets:
+
+            print(
+                f"\n[{target}]"
+            )
+
+            sales = self.forecast_by_date(
+                target,
+            )
+
+            for menu, qty in sales.items():
+
+                result.setdefault(
+                    menu,
+                    0.0,
+                )
+
+                result[
+                    menu
+                ] += qty
+
+        return result
 
         # --------------------------------------------------
         # Fallback
@@ -750,25 +853,32 @@ def forecast_result():
 # ==========================================================
 # Test
 # ==========================================================
-
 if __name__ == "__main__":
 
     print("=" * 60)
-
     print("HOMS Forecast Engine")
-
     print("=" * 60)
+
+    print()
+    print("발주기간 Forecast")
+    print()
+
+    print(
+        ENGINE.forecast_order_period()
+    )
+
+    print()
 
     result = ENGINE.forecast_result()
 
-    print("\n예 상  판 매")
+    print("\n예  상   판  매 ")
 
     for menu, qty in result["sales"].items():
 
-        print(f"{menu:<20} {qty}")
-
+        print(
+            f"{menu:<20} {qty}"
+        )
 
 # ==========================================================
 # END OF FILE
 # ==========================================================
-

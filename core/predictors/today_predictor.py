@@ -26,6 +26,7 @@ class TodayPredictor:
 
     def predict(
         self,
+        target_date=None,
     ) -> Dict[str, float]:
 
         today = date.today().strftime(

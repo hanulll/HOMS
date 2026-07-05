@@ -20,6 +20,8 @@ from core.database_engine import DatabaseEngine
 from core.inventory_engine import InventoryEngine
 from core.recipe_engine import RecipeEngine
 
+from core.forecast_engine import ForecastEngine
+
 from datetime import datetime, timedelta
 
 class OrderEngine:
@@ -31,6 +33,8 @@ class OrderEngine:
         self.inventory = InventoryEngine()
 
         self.recipe = RecipeEngine()
+
+        self.forecast = ForecastEngine()
 
     # ------------------------------------------------------
     # Key Normalize
@@ -319,13 +323,101 @@ class OrderEngine:
         )
 
     # ------------------------------------------------------
+    # 입 고  예 정  저 장
+    # ------------------------------------------------------
+    def save_receipt_schedule(
+        self,
+        orders,
+    ):
+        today = datetime.now()
+
+        delivery = self.get_delivery_date(
+            today,
+        )
+
+        if delivery is None:
+            return
+
+        order_date = today.strftime(
+            "%Y-%m-%d"
+        )
+
+        delivery_date = delivery.strftime(
+            "%Y-%m-%d"
+        )
+
+        for ingredient, data in orders.items():
+
+            if "order_packs" in data:
+
+                quantity = data[
+                    "order_packs"
+                ]
+
+                unit = "PACK"
+
+            else:
+
+                quantity = data[
+                    "order"
+                ]
+
+                unit = "UNIT"
+
+            self.db.execute(
+                """
+                DELETE
+                FROM receipt_schedule
+                WHERE
+                    order_date = ?
+                    AND ingredient = ?
+                    AND status = 'pending'
+                """,
+                (
+                    order_date,
+                    ingredient,
+                ),
+            )
+
+            self.db.execute(
+                """
+                INSERT INTO receipt_schedule
+                (
+                    order_date,
+                    delivery_date,
+                    ingredient,
+                    quantity,
+                    unit,
+                    status
+                )
+                VALUES
+                (
+                    ?, ?, ?, ?, ?, ?
+                )
+                """,
+                (
+                    order_date,
+                    delivery_date,
+                    ingredient,
+                    quantity,
+                    unit,
+                    "pending",
+                ),
+            )
+
+    # ------------------------------------------------------
     # 발주 추천
     # ------------------------------------------------------
 
     def recommend_order(
         self,
-        sales,
+        sales=None,
     ):
+
+        if sales is None:
+
+            sales = self.forecast.forecast_order_period()
+
 
         shortage = self.calculate_shortage(
             sales,
@@ -360,11 +452,6 @@ class OrderEngine:
 
             if key == "태국산윙봉":
 
-                required_pieces = amount
-
-                print(
-                    f"DEBUG THAI : amount={amount}"
-                )
 
                 required_pieces = amount
 
@@ -379,19 +466,13 @@ class OrderEngine:
                 )
 
                 result[ingredient] = {
-
                     "required_pieces": int(
                         required_pieces
                     ),
-
                     "required_packs": required_packs,
-
                     "unit": "20P/Pack",
-
                     "order_packs": order_packs,
-
                     "order_pieces": order_packs * 20,
-
                 }
 
                 continue
@@ -456,6 +537,11 @@ class OrderEngine:
                 ),
             )
 
+
+        self.save_receipt_schedule(
+            result,
+        )
+
         return result
 
 
@@ -465,6 +551,45 @@ class OrderEngine:
 
 ENGINE = OrderEngine()
 
+# ==========================================================
+# Test
+# ==========================================================
+
+if __name__ == "__main__":
+
+    print("=" * 60)
+
+    print("HOMS Order Engine")
+
+    print("=" * 60)
+
+    print()
+
+    result = ENGINE.recommend_order()
+
+    print()
+
+    print("추천 발주")
+
+    print()
+
+    if not result:
+
+        print("발주 대상 없음")
+
+    else:
+
+        for ingredient, data in result.items():
+
+            print()
+
+            print(ingredient)
+
+            for key, value in data.items():
+
+                print(
+                    f"  {key:<18} {value}"
+                )
 
 
 

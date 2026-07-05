@@ -165,21 +165,6 @@ class OrderImportEngine:
 
                 self.db.execute(
                     """
-                    UPDATE receipt_schedule
-                    SET
-                        status='received'
-                    WHERE
-                        ingredient=?
-                        AND status='confirmed'
-                        AND delivery_date
-                   """,
-                    (
-                        ingredient,
-                    ),
-                )
-
-                self.db.execute(
-                    """
                     INSERT INTO receipt_history
                     (
                         receipt_date,

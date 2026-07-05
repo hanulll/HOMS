@@ -75,6 +75,7 @@ class RecentPredictor:
 
     def predict(
         self,
+        target_date=None,
     ) -> Dict[str, float]:
 
         recent7 = self.average_sales(7)

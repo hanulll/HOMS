@@ -38,23 +38,32 @@ class PredictorManager:
 
     def predict(
         self,
+        target_date=None,
     ) -> Dict[str, float]:
 
         print("[Predictor] Manager Start")
 
-        recent_sales = self.recent.predict()
+        recent_sales = self.recent.predict(
+            target_date,
+        )
 
         print("[Predictor] Recent OK")
 
-        weekday_sales = self.weekday.predict()
+        weekday_sales = self.weekday.predict(
+            target_date,
+        )
 
         print("[Predictor] Weekday OK")
 
-        seasonal_sales = self.seasonal.predict()
+        seasonal_sales = self.seasonal.predict(
+            target_date,
+        )
 
         print("[Predictor] Seasonal OK")
 
-        today_sales = self.today.predict()
+        today_sales = self.today.predict(
+            target_date,
+        )
 
         print("[Predictor] Today OK")
 

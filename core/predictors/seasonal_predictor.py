@@ -26,9 +26,16 @@ class SeasonalPredictor:
 
     def predict(
         self,
+        target_date=None,
     ) -> Dict[str, float]:
 
-        month = date.today().month
+        if target_date is None:
+
+            month = date.today().month
+
+        else:
+
+            month = target_date.month
 
         rows = self.db.fetchall(
 
