@@ -10,6 +10,10 @@ from recipes.menu_rules import (
     get_menu_type,
 )
 
+from core.text_utils import (
+    normalize_menu,
+)
+
 # ==========================================================
 # Base Recipes
 # ==========================================================
@@ -196,28 +200,6 @@ BASE_RECIPES = {
     },
 
 }
-
-# ==========================================================
-# Menu Normalize
-# ==========================================================
-
-def normalize_menu(
-    menu_name,
-):
-
-    menu = "".join(
-        str(menu_name).split()
-    )
-
-    menu = menu.replace(
-        ",",
-        "",
-    )
-
-    menu = menu.upper()
-
-    return menu
-
 
 # ==========================================================
 # Recipe Lookup
