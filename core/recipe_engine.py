@@ -67,6 +67,22 @@ class RecipeEngine:
             is not None
         )
 
+
+    # ======================================================
+    # 메 뉴  정 규 화
+    # ======================================================
+    def normalize_menu(
+        self,
+        menu_name,
+    ):
+        from recipes.menu_rules import (
+            normalize_menu,
+        )
+
+        return normalize_menu(
+            menu_name,
+        )
+
     # ======================================================
     # 메뉴 검증
     # ======================================================
@@ -75,7 +91,6 @@ class RecipeEngine:
         self,
         menu_name,
     ):
-
         from recipes.menu_rules import (
             get_menu_type,
         )
@@ -83,16 +98,8 @@ class RecipeEngine:
         if get_menu_type(
             menu_name,
         ) is None:
-
-            print(
-                "DEBUG:",
-                repr(menu_name),
-                "->",
-                get_menu_type(menu_name),
-            )
-
             raise ValueError(
-                f"등 록 되 지  않 은  메 뉴  : {menu_name}"
+                f"등  록  되  지   않  은   메  뉴   : {menu_name}"
             )
 
         return True
@@ -201,6 +208,58 @@ class RecipeEngine:
             ] = amount
 
         return result
+
+    # ------------------------------------------------------
+    # 메 뉴  목 록
+    # ------------------------------------------------------
+    def get_menu_list(
+        self,
+    ):
+
+        return list(
+            MENU_RULES.keys()
+        )
+
+    # ------------------------------------------------------
+    # 원 재 료  목 록
+    # ------------------------------------------------------
+    def get_ingredient_list(
+        self,
+    ):
+        from recipes.ingredient_rules import (
+            INGREDIENTS,
+        )
+
+        return list(
+            INGREDIENTS
+        )
+
+    # ------------------------------------------------------
+    # 레 시 피  조 회
+    # ------------------------------------------------------
+    def get_recipe(
+        self,
+        menu_name,
+    ):
+
+        return self.recipe(
+            menu_name,
+        )
+
+    # ------------------------------------------------------
+    # 메 뉴  존 재
+    # ------------------------------------------------------
+    def has_menu(
+        self,
+        menu,
+    ):
+
+        return (
+            menu
+            in
+            self.recipe
+        )
+
 
     # ======================================================
     # 원재료 누적
